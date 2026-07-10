@@ -16,10 +16,11 @@ from reg_agents.config import get_settings
 
 def _build_client() -> Tuple[OpenAI, str]:
     s = get_settings()
+    common = {"timeout": s.request_timeout, "max_retries": 1}
     if s.embedding_provider == "nemo":
-        client = OpenAI(base_url=s.nemo_embed_base_url, api_key=s.nim_api_key or "not-needed")
+        client = OpenAI(base_url=s.nemo_embed_base_url, api_key=s.nim_api_key or "not-needed", **common)
         return client, s.nemo_embed_model
-    client = OpenAI(base_url=s.openai_base_url, api_key=s.openai_api_key or "not-needed")
+    client = OpenAI(base_url=s.openai_base_url, api_key=s.openai_api_key or "not-needed", **common)
     return client, s.openai_embed_model
 
 

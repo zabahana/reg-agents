@@ -20,6 +20,10 @@ class Settings(BaseSettings):
         protected_namespaces=("settings_",),
     )
 
+    # --- Request hardening ------------------------------------------------
+    # Per-request timeout (seconds) for LLM/embedding calls; fail fast.
+    request_timeout: float = Field(default=45.0)
+
     # --- LLM provider selection -------------------------------------------
     llm_provider: str = Field(default="openai")  # "openai" | "nim"
 

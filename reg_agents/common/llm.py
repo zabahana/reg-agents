@@ -22,10 +22,13 @@ _client: Optional[OpenAI] = None
 
 def _build_client() -> Tuple[OpenAI, str]:
     s = get_settings()
+    # Explicit short timeout + limited retries so a stalled call fails fast
+    # instead of hanging on the SDK's very long default timeout.
+    common = {"timeout": s.request_timeout, "max_retries": 1}
     if s.llm_provider == "nim":
-        client = OpenAI(base_url=s.nim_base_url, api_key=s.nim_api_key or "not-needed")
+        client = OpenAI(base_url=s.nim_base_url, api_key=s.nim_api_key or "not-needed", **common)
         return client, s.nim_model
-    client = OpenAI(base_url=s.openai_base_url, api_key=s.openai_api_key or "not-needed")
+    client = OpenAI(base_url=s.openai_base_url, api_key=s.openai_api_key or "not-needed", **common)
     return client, s.openai_model
 
 

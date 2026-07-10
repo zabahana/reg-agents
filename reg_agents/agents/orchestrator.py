@@ -64,7 +64,9 @@ def run_review(model_id: str, transaction: Optional[Dict[str, Any]] = None) -> D
     )
     steps["regulatory_context"] = _safe(
         lambda: retriever.send_text(
-            f"What regulatory requirements apply to validating and monitoring model {model_id}?"
+            "What SR 11-7 model risk management requirements and fair-lending / "
+            "consumer-protection rules (ECOA, FCRA, UDAAP) apply to validating, "
+            "explaining, and monitoring an AI-based card transaction fraud model?"
         ),
         "retriever agent",
     )
