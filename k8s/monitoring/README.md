@@ -49,8 +49,23 @@ kubectl apply -f k8s/monitoring/prometheusrules.yaml   # guardrail alerts
 | `TritonInferenceFailures` | Triton inference errors |
 | `GPUTemperatureHigh` / `GPUMemoryNearFull` / `GPUSaturated` | GPU health (DCGM) |
 
-They evaluate in Prometheus (see the **Alerts** tab); attach an Alertmanager
-receiver to page. The same rules run locally via `monitoring/alerts.yml`.
+They evaluate in Prometheus (see the **Alerts** tab). The same rules run locally
+via `monitoring/alerts.yml`.
+
+### Alertmanager routing
+
+kube-prometheus-stack ships Alertmanager; `values-kps.yaml` configures routing
+(warning → Slack, info → default) and inhibition. Set your Slack webhook by
+replacing the `api_url` placeholder in `values-kps.yaml` (or, better, mount a
+secret and use `api_url_file`), then `helm upgrade`. View it:
+
+```bash
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093
+# http://localhost:9093
+```
+
+Locally (docker-compose) the same routing lives in `monitoring/alertmanager.yml`,
+served at http://localhost:9093.
 
 ## Open Grafana
 

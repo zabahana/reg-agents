@@ -101,6 +101,7 @@ Now reachable on the Brev VM's public host (ports you exposed):
 | Triton metrics | 8002 | http://<brev-host>:8002/metrics |
 | GPU metrics (DCGM) | 9400 | http://<brev-host>:9400/metrics |
 | Prometheus | 9090 | http://<brev-host>:9090/alerts (guardrails) |
+| Alertmanager | 9093 | http://<brev-host>:9093 (routed alerts) |
 | Grafana    | 3000 | http://<brev-host>:3000  (admin / reg-agents) |
 
 ### Observability + guardrails you get
@@ -114,6 +115,8 @@ Now reachable on the Brev VM's public host (ports you exposed):
 - **Alerts** (`monitoring/alerts.yml`, Prometheus **Alerts** tab): high block
   rate, guardrail fired, serving-on-heuristic, GPU hot / memory-full / saturated,
   agent errors/latency, Triton failures.
+- **Alertmanager** (`:9093`) routes/dedupes those alerts; set your Slack webhook
+  in `monitoring/alertmanager.yml` (`api_url`) to actually page.
 
 Brev shows the public URL / SSH port-forward for each exposed port in the
 console and via `brev ports`.

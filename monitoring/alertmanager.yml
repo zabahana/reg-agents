@@ -1,0 +1,41 @@
+# Alertmanager config for the local (docker-compose) monitoring stack.
+# Routes the guardrail alerts (from monitoring/alerts.yml) to receivers.
+#
+# Slack: replace the api_url below with your incoming webhook (or export it and
+# use `api_url_file`). Leaving the placeholder is harmless — Alertmanager still
+# groups/deduplicates alerts and shows them at http://localhost:9093; only the
+# Slack POST fails.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Page-worthy guardrails go to Slack; info-level stays in the UI.
+    - matchers: ['severity="warning"']
+      receiver: slack
+      continue: true
+
+receivers:
+  - name: default
+
+  - name: slack
+    slack_configs:
+      - channel: '#reg-agents-alerts'
+        api_url: 'https://hooks.slack.com/services/REPLACE/WITH/WEBHOOK'
+        send_resolved: true
+        title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
+        text: >-
+          {{ range .Alerts }}*{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+
+inhibit_rules:
+  # A warning silences the matching info alert for the same alertname.
+  - source_matchers: ['severity="warning"']
+    target_matchers: ['severity="info"']
+    equal: [alertname]

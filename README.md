@@ -153,8 +153,9 @@ errors), Triton exports native inference metrics, and the DCGM exporter adds GPU
 metrics (util, memory, temp, power). The fraud model has runtime **guardrails**
 (input clamping + output-range reset + Triton→heuristic fallback) surfaced as
 metrics, plus Prometheus **alerts** (block-rate spike, guardrail fired,
-serving-on-heuristic, GPU hot/full, agent errors). The same Grafana dashboard
-and alerts run locally and on GKE.
+serving-on-heuristic, GPU hot/full, agent errors) routed through **Alertmanager**
+(warning → Slack). The same Grafana dashboard, alerts, and routing run locally
+and on GKE.
 
 - **Local:** `docker compose --profile monitoring up` → Grafana at
   [localhost:3000](http://localhost:3000) (`admin` / `reg-agents`), dashboard

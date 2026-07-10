@@ -7,10 +7,16 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
-# Guardrail alert rules (visible in the Prometheus "Alerts" tab; wire an
-# Alertmanager for paging). Same rules ship for GKE as a PrometheusRule.
+# Guardrail alert rules (visible in the Prometheus "Alerts" tab). Same rules
+# ship for GKE as a PrometheusRule.
 rule_files:
   - /etc/prometheus/alerts.yml
+
+# Send firing alerts to Alertmanager (docker-compose monitoring profile).
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
 
 scrape_configs:
   - job_name: reg-agents-agents

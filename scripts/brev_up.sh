@@ -52,6 +52,7 @@ cat <<'EOF'
     Triton metrics:8002   (/metrics)
     GPU metrics   :9400   (DCGM /metrics)
     Prometheus    :9090   (/alerts shows the guardrails)
+    Alertmanager  :9093   (routed guardrail alerts; set Slack webhook in monitoring/alertmanager.yml)
     Grafana       :3000   (admin / reg-agents) -> "reg-agents — agents, model & GPU"
 
     Generate traffic:
