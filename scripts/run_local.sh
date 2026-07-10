@@ -5,20 +5,34 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Resolve a Python interpreter. Prefer the project venv so this works whether or
+# not the venv is activated; override with PYTHON=... if needed.
+PY="${PYTHON:-}"
+if [[ -z "$PY" ]]; then
+  if [[ -x ".venv/bin/python" ]]; then PY="$(pwd)/.venv/bin/python"
+  elif command -v python  >/dev/null 2>&1; then PY="python"
+  elif command -v python3 >/dev/null 2>&1; then PY="python3"
+  else
+    echo "ERROR: no Python found. Create the venv first (see README Quickstart)." >&2
+    exit 1
+  fi
+fi
+echo "using python: $PY"
+
 mkdir -p .run
 : > .run/pids
 
 start () {
   local name="$1"; local module="$2"; local port="$3"
   echo "starting $name on :$port"
-  PORT="$port" python -m "$module" > ".run/${name}.log" 2>&1 &
+  PORT="$port" "$PY" -m "$module" > ".run/${name}.log" 2>&1 &
   echo "$! $name" >> .run/pids
 }
 
 start_app () {
   local name="$1"; local app="$2"; local port="$3"
   echo "starting $name on :$port"
-  PORT="$port" python -m uvicorn "$app" --host 0.0.0.0 --port "$port" \
+  PORT="$port" "$PY" -m uvicorn "$app" --host 0.0.0.0 --port "$port" \
     > ".run/${name}.log" 2>&1 &
   echo "$! $name" >> .run/pids
 }
@@ -43,6 +57,25 @@ start_app developer_agent  reg_agents.agents.developer_agent:app  8105
 start_app validator_agent  reg_agents.agents.validator_agent:app  8106
 start_app audit_agent      reg_agents.agents.audit_agent:app      8107
 start_app lifecycle        reg_agents.agents.lifecycle_orchestrator:app 8108
+
+# Wait until the A2A agents actually accept connections (they import heavy libs
+# like scikit-learn/faiss and take a few seconds), so callers can run demos
+# immediately after this script returns instead of hitting "Connection refused".
+wait_ready () {
+  local ports="8100 8101 8102 8103 8104 8105 8106 8107 8108"
+  echo -n "waiting for agents to be ready"
+  for _ in $(seq 1 60); do
+    local all_ok=1
+    for p in $ports; do
+      curl -fs -m 2 "http://localhost:${p}/health" >/dev/null 2>&1 || all_ok=0
+    done
+    if [[ "$all_ok" == "1" ]]; then echo " — ready."; return 0; fi
+    echo -n "."; sleep 1
+  done
+  echo " — timed out; check .run/*.log"
+  return 1
+}
+wait_ready || true
 
 echo
 echo "All services started. Logs in .run/. Try:"
