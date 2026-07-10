@@ -1,0 +1,84 @@
+# Full local stack: 3 MCP tool servers + 5 A2A agents + Streamlit UI.
+# Uses one image (built once) with per-service commands and service-DNS URLs.
+#
+#   docker compose build
+#   docker compose up
+#   open http://localhost:8501     (UI)
+#
+# Provide keys via a .env file (see .env.example). Everything still runs with
+# no keys thanks to lexical + heuristic fallbacks.
+
+x-common: &common
+  build: .
+  image: reg-agents:latest
+  env_file: .env
+  environment: &common-env
+    # Point every client at in-cluster service names.
+    REGULATIONS_MCP_URL: http://regulations-mcp:9101/sse
+    MODEL_REGISTRY_MCP_URL: http://model-registry-mcp:9102/sse
+    FRAUD_MCP_URL: http://fraud-mcp:9103/sse
+    RETRIEVER_AGENT_URL: http://retriever-agent:8101
+    VALIDATION_AGENT_URL: http://validation-agent:8102
+    FRAUD_AGENT_URL: http://fraud-agent:8103
+    REPORT_AGENT_URL: http://report-agent:8104
+  restart: unless-stopped
+
+services:
+  regulations-mcp:
+    <<: *common
+    command: python -m reg_agents.mcp_servers.regulations_server
+    environment:
+      <<: *common-env
+      PORT: "9101"
+    ports: ["9101:9101"]
+
+  model-registry-mcp:
+    <<: *common
+    command: python -m reg_agents.mcp_servers.model_registry_server
+    environment:
+      <<: *common-env
+      PORT: "9102"
+    ports: ["9102:9102"]
+
+  fraud-mcp:
+    <<: *common
+    command: python -m reg_agents.mcp_servers.fraud_server
+    environment:
+      <<: *common-env
+      PORT: "9103"
+    ports: ["9103:9103"]
+
+  retriever-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.retriever_agent:app --host 0.0.0.0 --port 8101
+    ports: ["8101:8101"]
+    depends_on: [regulations-mcp]
+
+  validation-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.validation_agent:app --host 0.0.0.0 --port 8102
+    ports: ["8102:8102"]
+    depends_on: [regulations-mcp, model-registry-mcp]
+
+  fraud-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.fraud_agent:app --host 0.0.0.0 --port 8103
+    ports: ["8103:8103"]
+    depends_on: [fraud-mcp]
+
+  report-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.report_agent:app --host 0.0.0.0 --port 8104
+    ports: ["8104:8104"]
+
+  orchestrator:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.orchestrator:app --host 0.0.0.0 --port 8100
+    ports: ["8100:8100"]
+    depends_on: [retriever-agent, validation-agent, fraud-agent, report-agent]
+
+  ui:
+    <<: *common
+    command: streamlit run reg_agents/ui/app.py --server.address 0.0.0.0 --server.port 8501
+    ports: ["8501:8501"]
+    depends_on: [orchestrator]

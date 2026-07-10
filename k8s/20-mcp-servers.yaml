@@ -1,0 +1,88 @@
+# MCP tool servers (CPU). Each exposes tools over SSE.
+# Image: your pushed reg-agents image (see k8s/README.md for the build/push).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: regulations-mcp
+  namespace: reg-agents
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: regulations-mcp } }
+  template:
+    metadata: { labels: { app: regulations-mcp } }
+    spec:
+      containers:
+        - name: app
+          image: REPLACE_IMAGE   # e.g. us-docker.pkg.dev/PROJECT/reg-agents/app:latest
+          command: ["python", "-m", "reg_agents.mcp_servers.regulations_server"]
+          env:
+            - { name: PORT, value: "9101" }
+          envFrom:
+            - configMapRef: { name: reg-agents-config }
+            - secretRef: { name: reg-agents-secrets }
+          ports: [{ containerPort: 9101 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: regulations-mcp, namespace: reg-agents }
+spec:
+  selector: { app: regulations-mcp }
+  ports: [{ port: 9101, targetPort: 9101 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-registry-mcp
+  namespace: reg-agents
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: model-registry-mcp } }
+  template:
+    metadata: { labels: { app: model-registry-mcp } }
+    spec:
+      containers:
+        - name: app
+          image: REPLACE_IMAGE
+          command: ["python", "-m", "reg_agents.mcp_servers.model_registry_server"]
+          env:
+            - { name: PORT, value: "9102" }
+          envFrom:
+            - configMapRef: { name: reg-agents-config }
+            - secretRef: { name: reg-agents-secrets }
+          ports: [{ containerPort: 9102 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: model-registry-mcp, namespace: reg-agents }
+spec:
+  selector: { app: model-registry-mcp }
+  ports: [{ port: 9102, targetPort: 9102 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-mcp
+  namespace: reg-agents
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: fraud-mcp } }
+  template:
+    metadata: { labels: { app: fraud-mcp } }
+    spec:
+      containers:
+        - name: app
+          image: REPLACE_IMAGE
+          command: ["python", "-m", "reg_agents.mcp_servers.fraud_server"]
+          env:
+            - { name: PORT, value: "9103" }
+          envFrom:
+            - configMapRef: { name: reg-agents-config }
+            - secretRef: { name: reg-agents-secrets }
+          ports: [{ containerPort: 9103 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: fraud-mcp, namespace: reg-agents }
+spec:
+  selector: { app: fraud-mcp }
+  ports: [{ port: 9103, targetPort: 9103 }]

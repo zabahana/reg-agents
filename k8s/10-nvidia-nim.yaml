@@ -1,0 +1,161 @@
+# -----------------------------------------------------------------------------
+# NVIDIA inference tier (runs on the GPU node pool).
+#   - nim-llm         : LLM reasoning NIM (OpenAI-compatible /v1)
+#   - nemo-retriever  : embedding NIM for RAG (OpenAI-compatible /v1/embeddings)
+#   - triton          : Triton Inference Server hosting the fraud GNN+XGBoost model
+#
+# Images come from NGC (nvcr.io) and require an image pull secret:
+#   kubectl -n reg-agents create secret docker-registry ngc-secret \
+#     --docker-server=nvcr.io --docker-username='$oauthtoken' \
+#     --docker-password="$NGC_API_KEY"
+#
+# and an NGC API key secret for the NIM runtime:
+#   kubectl -n reg-agents create secret generic ngc-api \
+#     --from-literal=NGC_API_KEY="$NGC_API_KEY"
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nim-llm
+  namespace: reg-agents
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nim-llm }
+  template:
+    metadata:
+      labels: { app: nim-llm }
+    spec:
+      imagePullSecrets:
+        - name: ngc-secret
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: nim-llm
+          image: nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
+          ports: [{ containerPort: 8000 }]
+          env:
+            - name: NGC_API_KEY
+              valueFrom: { secretKeyRef: { name: ngc-api, key: NGC_API_KEY } }
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - { name: nim-cache, mountPath: /opt/nim/.cache }
+          readinessProbe:
+            httpGet: { path: /v1/health/ready, port: 8000 }
+            initialDelaySeconds: 60
+            periodSeconds: 15
+      volumes:
+        - name: nim-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nim-llm
+  namespace: reg-agents
+spec:
+  selector: { app: nim-llm }
+  ports: [{ port: 8000, targetPort: 8000 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nemo-retriever
+  namespace: reg-agents
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nemo-retriever }
+  template:
+    metadata:
+      labels: { app: nemo-retriever }
+    spec:
+      imagePullSecrets:
+        - name: ngc-secret
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: nemo-retriever
+          image: nvcr.io/nim/nvidia/nv-embedqa-e5-v5:latest
+          ports: [{ containerPort: 8000 }]
+          env:
+            - name: NGC_API_KEY
+              valueFrom: { secretKeyRef: { name: ngc-api, key: NGC_API_KEY } }
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nemo-retriever
+  namespace: reg-agents
+spec:
+  selector: { app: nemo-retriever }
+  ports: [{ port: 8000, targetPort: 8000 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton
+  namespace: reg-agents
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: triton }
+  template:
+    metadata:
+      labels: { app: triton }
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: triton
+          image: nvcr.io/nvidia/tritonserver:24.08-py3
+          # Point at a model repository (GCS via gcsfuse CSI, or a PVC). The
+          # fraud_xgb_gnn model dir must contain config.pbtxt + model files.
+          args:
+            - tritonserver
+            - --model-repository=/models
+            - --model-control-mode=poll
+          ports:
+            - { name: http, containerPort: 8000 }
+            - { name: grpc, containerPort: 8001 }
+            - { name: metrics, containerPort: 8002 }
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - { name: model-repo, mountPath: /models }
+          readinessProbe:
+            httpGet: { path: /v2/health/ready, port: 8000 }
+            initialDelaySeconds: 30
+      volumes:
+        # Replace with a GCS-backed volume (gcsfuse CSI) or PVC holding models.
+        - name: model-repo
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton
+  namespace: reg-agents
+spec:
+  selector: { app: triton }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
+    - { name: grpc, port: 8001, targetPort: 8001 }

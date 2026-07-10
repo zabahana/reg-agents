@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+*.local.yaml
+k8s/secret.yaml
+
+# Data artifacts
+*.faiss
+*.index
+data/**/*.pkl
+
+# Local run artifacts + uv-managed toolchain (kept inside workspace)
+.run/
+.tools/
+.pythons/
+.uvcache/
+
+# OS
+.DS_Store

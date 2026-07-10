@@ -1,0 +1,44 @@
+# Shared configuration for all agents/MCP servers on GKE.
+# In-cluster the agents talk to NVIDIA NIM (LLM), NeMo Retriever (embeddings),
+# and Triton (fraud model) via ClusterIP service DNS.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reg-agents-config
+  namespace: reg-agents
+data:
+  LLM_PROVIDER: "nim"
+  NIM_BASE_URL: "http://nim-llm:8000/v1"
+  NIM_MODEL: "meta/llama-3.1-8b-instruct"
+
+  EMBEDDING_PROVIDER: "nemo"
+  NEMO_EMBED_BASE_URL: "http://nemo-retriever:8000/v1"
+  NEMO_EMBED_MODEL: "nvidia/nv-embedqa-e5-v5"
+
+  VECTOR_BACKEND: "milvus"
+  MILVUS_URI: "http://milvus:19530"
+
+  TRITON_URL: "http://triton:8000"
+
+  REGULATIONS_MCP_URL: "http://regulations-mcp:9101/sse"
+  MODEL_REGISTRY_MCP_URL: "http://model-registry-mcp:9102/sse"
+  FRAUD_MCP_URL: "http://fraud-mcp:9103/sse"
+
+  RETRIEVER_AGENT_URL: "http://retriever-agent:8101"
+  VALIDATION_AGENT_URL: "http://validation-agent:8102"
+  FRAUD_AGENT_URL: "http://fraud-agent:8103"
+  REPORT_AGENT_URL: "http://report-agent:8104"
+---
+# Example only. Create the real secret with:
+#   kubectl -n reg-agents create secret generic reg-agents-secrets \
+#     --from-literal=NIM_API_KEY=nvapi-xxxx
+# (NIM_API_KEY is only needed if you also call the hosted NVIDIA catalog.)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: reg-agents-secrets
+  namespace: reg-agents
+type: Opaque
+stringData:
+  NIM_API_KEY: "replace-me-or-leave-blank-for-in-cluster-nim"
+  OPENAI_API_KEY: ""
