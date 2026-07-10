@@ -22,6 +22,7 @@ data/**/*.pkl
 .tools/
 .pythons/
 .uvcache/
+uv.lock
 
 # OS
 .DS_Store

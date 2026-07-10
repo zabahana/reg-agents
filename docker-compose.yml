@@ -17,10 +17,15 @@ x-common: &common
     REGULATIONS_MCP_URL: http://regulations-mcp:9101/sse
     MODEL_REGISTRY_MCP_URL: http://model-registry-mcp:9102/sse
     FRAUD_MCP_URL: http://fraud-mcp:9103/sse
+    MODELING_MCP_URL: http://modeling-mcp:9104/sse
     RETRIEVER_AGENT_URL: http://retriever-agent:8101
     VALIDATION_AGENT_URL: http://validation-agent:8102
     FRAUD_AGENT_URL: http://fraud-agent:8103
     REPORT_AGENT_URL: http://report-agent:8104
+    DEVELOPER_AGENT_URL: http://developer-agent:8105
+    VALIDATOR_AGENT_URL: http://validator-agent:8106
+    AUDIT_AGENT_URL: http://audit-agent:8107
+    LIFECYCLE_ORCHESTRATOR_URL: http://lifecycle-orchestrator:8108
   restart: unless-stopped
 
 services:
@@ -47,6 +52,14 @@ services:
       <<: *common-env
       PORT: "9103"
     ports: ["9103:9103"]
+
+  modeling-mcp:
+    <<: *common
+    command: python -m reg_agents.mcp_servers.modeling_server
+    environment:
+      <<: *common-env
+      PORT: "9104"
+    ports: ["9104:9104"]
 
   retriever-agent:
     <<: *common
@@ -76,6 +89,31 @@ services:
     command: python -m uvicorn reg_agents.agents.orchestrator:app --host 0.0.0.0 --port 8100
     ports: ["8100:8100"]
     depends_on: [retriever-agent, validation-agent, fraud-agent, report-agent]
+
+  # --- Model-development lifecycle (three lines of defense) ---
+  developer-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.developer_agent:app --host 0.0.0.0 --port 8105
+    ports: ["8105:8105"]
+    depends_on: [modeling-mcp]
+
+  validator-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.validator_agent:app --host 0.0.0.0 --port 8106
+    ports: ["8106:8106"]
+    depends_on: [regulations-mcp]
+
+  audit-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.audit_agent:app --host 0.0.0.0 --port 8107
+    ports: ["8107:8107"]
+    depends_on: [regulations-mcp]
+
+  lifecycle-orchestrator:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.lifecycle_orchestrator:app --host 0.0.0.0 --port 8108
+    ports: ["8108:8108"]
+    depends_on: [developer-agent, validator-agent, audit-agent]
 
   ui:
     <<: *common

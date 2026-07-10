@@ -12,15 +12,19 @@ NVIDIA component in the JD** using something you actually built.
 
 ## 1. The 60-second pitch (memorize this)
 
-> "I built `reg-agents`, a multi-agent model-governance system for banking. Five
-> agents coordinate over Google's **A2A** protocol; they call tools over
-> **MCP** — regulation search, a model registry, and fraud scoring. The LLM
-> reasoning runs on **NVIDIA NIM**, retrieval uses **NeMo Retriever**
-> embeddings, and the fraud model — a **GNN-enhanced XGBoost**, like NVIDIA's
-> fraud AI Blueprint — is served on **Triton**. It's containerized, runs on
-> **GKE with a GPU node pool**, and ships via a **GitHub Actions CI/CD**
-> pipeline. Because NIM is OpenAI-API-compatible, I develop locally against
-> OpenAI and flip one env var to run the whole thing on NVIDIA inference."
+> "I built `reg-agents`, a multi-agent model-governance system for banking. Nine
+> agents coordinate over Google's **A2A** protocol across two flows; they call
+> tools over **MCP** — regulation search, a model registry, fraud scoring, and a
+> model bake-off. One flow runs an SR 11-7 **governance review**; the other runs
+> the full **model-development lifecycle** — a Developer agent trains candidate
+> models and picks a champion, an independent Validator does *effective
+> challenge*, and Internal Audit reviews the process. That's the banking **three
+> lines of defense**, as agents. The LLM reasoning runs on **NVIDIA NIM**,
+> retrieval uses **NeMo Retriever** embeddings, and the fraud model — a
+> **GNN-enhanced XGBoost**, like NVIDIA's fraud AI Blueprint — is served on
+> **Triton**. It's containerized, runs on **GKE with a GPU node pool**, and ships
+> via **GitHub Actions CI/CD**. Because NIM is OpenAI-API-compatible, I develop
+> locally against OpenAI and flip one env var to run it all on NVIDIA inference."
 
 ---
 
@@ -65,11 +69,28 @@ NVIDIA component in the JD** using something you actually built.
 ### Agentic AI: A2A + MCP
 - **A2A** (agent-to-agent): agent cards, `message/send`, tasks/artifacts —
   interoperable agents across teams/vendors. `reg_agents/common/a2a.py`.
-- **MCP** (model context protocol): standard tool/resource interface; our three
+- **MCP** (model context protocol): standard tool/resource interface; our four
   servers are reusable by any MCP client. `reg_agents/common/mcp_client.py`.
 - **AIQ** (NVIDIA AgentIQ / NeMo Agent toolkit): know it exists — profiling,
   evaluation, and orchestration of agent systems. Say you'd add AIQ for **agent
   evaluation and tracing** in production. (Flora's stack.)
+
+### Model risk lifecycle: three lines of defense (as agents)
+- **What/why:** banks separate model **development** (1st line), independent
+  **validation** (2nd line), and **internal audit** (3rd line). SR 11-7 / OCC
+  2011-12 require independence and "effective challenge" between them.
+- **In the project:** `developer_agent` runs a real **scikit-learn bake-off**
+  (`common/modeling.py`, exposed via `modeling-mcp`), trains 5 candidates
+  (baseline, logistic, tree, random forest, gradient boosting), and selects a
+  champion by ROC-AUC. `validator_agent` independently challenges that choice;
+  `audit_agent` reviews the process. `lifecycle_orchestrator` sequences them.
+- **The money detail:** the committed sample shows the validator *catching a real
+  issue* — the champion was picked on ROC-AUC, but a challenger beat it on
+  PR-AUC/recall under 7.6% class imbalance, so the validator returns
+  **Approve-with-Conditions**. That's exactly what effective challenge looks like.
+- **SA angle:** "This is how I'd productize MRM with agents — and on GPU the
+  bake-off becomes **RAPIDS cuML / XGBoost**, the reasoning becomes **NIM**, so
+  the same lifecycle runs at a bank's scale." See `docs/lifecycle/`.
 
 ### Kubernetes / Docker / CI-CD
 - One image, per-service command; `docker-compose.yml` locally; `k8s/` splits a

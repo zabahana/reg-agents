@@ -53,11 +53,17 @@ class Settings(BaseSettings):
     validation_agent_url: str = Field(default="http://localhost:8102")
     fraud_agent_url: str = Field(default="http://localhost:8103")
     report_agent_url: str = Field(default="http://localhost:8104")
+    # Model-development lifecycle (three lines of defense)
+    developer_agent_url: str = Field(default="http://localhost:8105")
+    validator_agent_url: str = Field(default="http://localhost:8106")
+    audit_agent_url: str = Field(default="http://localhost:8107")
+    lifecycle_orchestrator_url: str = Field(default="http://localhost:8108")
 
     # --- MCP tool servers (SSE transport) ---------------------------------
     regulations_mcp_url: str = Field(default="http://localhost:9101/sse")
     model_registry_mcp_url: str = Field(default="http://localhost:9102/sse")
     fraud_mcp_url: str = Field(default="http://localhost:9103/sse")
+    modeling_mcp_url: str = Field(default="http://localhost:9104/sse")
 
     @property
     def active_model(self) -> str:

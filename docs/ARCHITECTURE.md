@@ -21,10 +21,15 @@ Desktop) can use them.
   `get_model_documentation`. Stands in for a bank's MRM inventory.
 - **fraud-mcp** — `score_transaction`. Proxies **Triton** (GNN+XGBoost) in the
   demo; heuristic locally.
+- **modeling-mcp** — `list_tasks`, `list_candidate_models`, `run_model_bakeoff`,
+  `get_champion`. Trains candidate models and selects a champion. scikit-learn
+  locally; **RAPIDS cuML / XGBoost** analog on GPU.
 
 ### A2A agents (Agent-to-Agent protocol)
 Each agent publishes an **Agent Card** at `/.well-known/agent-card.json` and
 accepts JSON-RPC `message/send`. Each is independently deployable/scalable.
+
+Governance-review flow:
 
 - **retriever-agent** — grounds answers in retrieved regulations.
 - **validation-agent** — SR 11-7 findings from model docs + regulations.
@@ -32,6 +37,21 @@ accepts JSON-RPC `message/send`. Each is independently deployable/scalable.
 - **report-agent** — audit-ready governance report.
 - **orchestrator** — A2A *client* that fans out to the specialists and composes
   the report; also an A2A *server* so it is itself composable.
+
+Model-development lifecycle flow (three lines of defense):
+
+- **developer-agent** (1st line) — runs the modeling-mcp bake-off, selects a
+  champion against a documented primary metric, writes the model development
+  document.
+- **validator-agent** (2nd line) — independent *effective challenge*: critiques
+  the champion selection (e.g. ROC-AUC vs PR-AUC/recall under class imbalance),
+  reviews conceptual soundness, data, outcomes, and fair lending; issues a
+  disposition (Approve / Approve with Conditions / Reject).
+- **audit-agent** (3rd line) — audits the *process* (validation independence,
+  documentation, effective-challenge evidence, approvals) and issues an audit
+  opinion. Does not re-do the math.
+- **lifecycle-orchestrator** — sequences developer → validator → audit, threading
+  each artifact to the next agent; also an A2A server.
 
 ### Inference tier (NVIDIA, on GPU)
 - **NIM (LLM)** — OpenAI-compatible chat completions used by every agent.
@@ -69,6 +89,35 @@ sequenceDiagram
     O-->>U: report + trace
 ```
 
+## Request flow (model-development lifecycle)
+
+```mermaid
+sequenceDiagram
+    participant U as User / UI
+    participant L as Lifecycle Orchestrator (A2A)
+    participant D as Developer Agent (1st line)
+    participant V as Validator Agent (2nd line)
+    participant A as Audit Agent (3rd line)
+    participant M as modeling-mcp
+    participant Reg as regulations-mcp
+    participant NV as NIM / NeMo
+
+    U->>L: run_lifecycle(task_id)
+    L->>D: A2A message/send(task_id)
+    D->>M: run_model_bakeoff (train candidates, pick champion)
+    D->>NV: NIM chat (model development document)
+    D-->>L: dev document + leaderboard
+    L->>V: A2A message/send(dev doc + leaderboard)
+    V->>Reg: search_regulations (validation / fair lending)
+    V->>NV: NIM chat (effective challenge + disposition)
+    V-->>L: validation report
+    L->>A: A2A message/send(dev doc + validation report)
+    A->>Reg: search_regulations (governance / audit)
+    A->>NV: NIM chat (audit opinion)
+    A-->>L: audit report
+    L-->>U: 3 documents + trace
+```
+
 ## Local vs GPU parity
 
 | Concern | Local dev | GKE GPU demo |
@@ -77,6 +126,7 @@ sequenceDiagram
 | Embeddings | OpenAI embeddings | NeMo Retriever (`nv-embedqa-e5-v5`) |
 | Vector search | FAISS (CPU) / numpy | Milvus + cuVS (GPU) |
 | Fraud model | heuristic | Triton (GNN+XGBoost) |
+| Model bake-off | scikit-learn (CPU) | RAPIDS cuML / XGBoost (GPU) |
 | Orchestration | same code | same code |
 
 The agents/MCP servers are **identical** across environments; only config
