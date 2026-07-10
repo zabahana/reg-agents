@@ -2,21 +2,21 @@
 
 **Regulatory Intelligence & Model Governance — a multi-agent system on the NVIDIA AI stack.**
 
-A production-shaped demo for the NVIDIA *Senior Solutions Architect, Financial
-Services Banking* role. It runs an end-to-end **SR 11-7 model governance
-review**: specialist agents validate a model, analyze its fraud performance,
-retrieve the relevant regulations, and compose an audit-ready report — all
-coordinated over **A2A**, calling tools over **MCP**, and served by **NVIDIA
-NIM / NeMo Retriever / Triton**.
+A production-shaped **mock demo** of agentic AI for banking model risk
+management. It runs an end-to-end **SR 11-7 model governance review**: specialist
+agents validate a model, analyze its fraud performance, retrieve the relevant
+regulations, and compose an audit-ready report — all coordinated over **A2A**,
+calling tools over **MCP**, and served by **NVIDIA NIM / NeMo Retriever /
+Triton**.
 
 > Built to be demoable on a laptop (OpenAI + lexical/heuristic fallbacks) and to
 > run the *real* NVIDIA stack on a **GKE GPU** cluster with a one-line provider flip.
 
 ---
 
-## What it demonstrates (maps to the job description)
+## What it demonstrates
 
-| Job requirement | Where it shows up here |
+| Capability | Where it shows up here |
 |---|---|
 | NVIDIA NIM / NeMo / TensorRT / Triton | `nim-llm`, `nemo-retriever`, `triton` (k8s GPU tier); OpenAI-compatible client |
 | GNNs / XGBoost for fraud | Fraud model (mirrors NVIDIA fraud AI Blueprint), served via Triton |
@@ -26,8 +26,7 @@ NIM / NeMo Retriever / Triton**.
 | Production deployment / MLOps | Docker, docker-compose, Kubernetes/GKE, GitHub Actions CI/CD |
 | Python, distributed serving | FastAPI services, RAPIDS/cuVS/Milvus GPU path documented |
 
-Plus the four **explicitly requested** components: **Kubernetes**, **MCP**,
-**A2A**, **Docker**, and **CI/CD**.
+Core building blocks: **Kubernetes**, **MCP**, **A2A**, **Docker**, and **CI/CD**.
 
 Two orchestrated flows share the same agent/MCP infrastructure:
 
@@ -81,8 +80,8 @@ agents (three lines of defense):
    modeling-mcp  (scikit-learn bake-off → champion; GPU: RAPIDS cuML / XGBoost)
 ```
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detail and
-[`docs/STUDY_GUIDE.md`](docs/STUDY_GUIDE.md) for the interview talking points.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for design detail and
+request-flow diagrams.
 
 ---
 
@@ -152,7 +151,7 @@ reg_agents/
                  lifecycle:  lifecycle-orchestrator + developer / validator / audit (A2A)
   ui/            Streamlit demo
 data/            regulations corpus, model cards, sample transactions
-docs/            architecture, study guide, sample reports + lifecycle artifacts
+docs/            architecture, sample reports + lifecycle artifacts
 k8s/             GKE manifests (GPU NIM tier + CPU agents) + setup guide
 scripts/         run_local.sh / stop_local.sh / demo_run.py / lifecycle_run.py / generate_*.py
 tests/           offline unit tests

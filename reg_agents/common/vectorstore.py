@@ -2,7 +2,7 @@
 
 Local dev: in-process FAISS (CPU). On the GPU demo this is swapped for Milvus
 with the NVIDIA cuVS backend for GPU-accelerated ANN search -- same interface,
-so the agents don't change. The GPU path is documented in k8s/ and STUDY_GUIDE.
+so the agents don't change. The GPU path is documented in k8s/.
 
 To keep local setup dependency-light, if FAISS or embeddings are unavailable we
 fall back to an exact numpy cosine search, so the demo always runs.

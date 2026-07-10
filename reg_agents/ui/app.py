@@ -2,8 +2,7 @@
 
     streamlit run reg_agents/ui/app.py
 
-Shows the multi-agent flow and renders the final audit-ready report. Great for
-a live interview walkthrough.
+Shows the multi-agent flow and renders the final audit-ready report.
 """
 
 from __future__ import annotations

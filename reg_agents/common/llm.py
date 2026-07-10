@@ -6,7 +6,7 @@ GCP GPU) with only a base_url + api_key + model change.
 
     Migrating from OpenAI to NVIDIA NIM in this codebase = flip LLM_PROVIDER.
 
-That is a deliberate talking point for the Solutions Architect demo.
+That provider-portability is a deliberate design choice of the demo.
 """
 
 from __future__ import annotations

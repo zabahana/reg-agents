@@ -1,9 +1,9 @@
 # Architecture
 
 ## Design goals
-1. **Showcase the NVIDIA AI stack** the way a Solutions Architect would deploy it
-   for a bank: NIM for LLM inference, NeMo Retriever for embeddings, Triton for
-   the fraud model, on Kubernetes GPUs.
+1. **Showcase the NVIDIA AI stack** as it would be deployed for a bank: NIM for
+   LLM inference, NeMo Retriever for embeddings, Triton for the fraud model, on
+   Kubernetes GPUs.
 2. **Be a faithful agentic system**: real MCP tool servers and real A2A
    agent-to-agent messaging, not a monolith pretending to be agents.
 3. **Always demoable**: laptop-friendly fallbacks so nothing hard-blocks a demo.
@@ -130,7 +130,8 @@ sequenceDiagram
 | Orchestration | same code | same code |
 
 The agents/MCP servers are **identical** across environments; only config
-(env vars in `ConfigMap`) changes. That portability is the SA value proposition.
+(env vars in `ConfigMap`) changes. That portability is the core value: develop
+locally against OpenAI, deploy on the NVIDIA stack with no code changes.
 
 ## Scaling & production notes
 - Each agent/MCP server scales independently (HPA on CPU/RPS).
