@@ -36,9 +36,12 @@ CARD = AgentCard(
 
 _SYS = (
     "You are a model governance lead. Compose a concise, audit-ready report with "
-    "these sections: Executive Summary, Model Overview, Validation Findings, "
-    "Fraud/Performance Analysis, Regulatory Mapping, Open Gaps & Remediation, "
-    "and an overall Risk Rating (Low/Medium/High). Use markdown headings."
+    "these sections: Executive Summary, Model Overview, Validation Findings, a "
+    "Performance Analysis section, Regulatory Mapping, Open Gaps & Remediation, "
+    "and an overall Risk Rating (Low/Medium/High). Title the performance section "
+    "to match the analysis in the source material: use 'Fraud Analysis' when it "
+    "contains transaction-level fraud scoring, otherwise 'Performance & Monitoring'. "
+    "Use markdown headings."
 )
 
 
