@@ -64,3 +64,9 @@ services:
       TRITON_URL: http://triton:8000
     depends_on:
       - triton
+
+  # The UI only reads TRITON_URL to display the serving mode in its header
+  # (scoring itself goes through fraud-mcp); set it so the header reflects GPU.
+  ui:
+    environment:
+      TRITON_URL: http://triton:8000

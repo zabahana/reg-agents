@@ -33,7 +33,7 @@ st.caption(
     f"LLM provider: **{settings.llm_provider}** ({settings.active_model})  ·  "
     f"Embeddings: **{settings.embedding_provider}**  ·  "
     f"Vector backend: **{settings.vector_backend}**  ·  "
-    f"Triton: **{settings.triton_url or 'local heuristic'}**"
+    f"Fraud serving: **{'Triton (GPU)' if settings.triton_url else 'local heuristic'}**"
 )
 
 with st.sidebar:
