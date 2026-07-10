@@ -26,6 +26,9 @@ x-common: &common
     VALIDATOR_AGENT_URL: http://validator-agent:8106
     AUDIT_AGENT_URL: http://audit-agent:8107
     LIFECYCLE_ORCHESTRATOR_URL: http://lifecycle-orchestrator:8108
+    # OpenTelemetry: agents export traces to Jaeger (started by the `monitoring`
+    # profile). Tracing is a no-op in code if this endpoint is unreachable.
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
   restart: unless-stopped
 
 services:
@@ -153,4 +156,16 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports: ["3000:3000"]
     depends_on: [prometheus]
+    restart: unless-stopped
+
+  # Distributed tracing: receives OTLP spans from every agent and renders the
+  # end-to-end A2A trace waterfall. UI at http://localhost:16686.
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    profiles: ["monitoring"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4318:4318"     # OTLP HTTP receiver (agents export here)
     restart: unless-stopped

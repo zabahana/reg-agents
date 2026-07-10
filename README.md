@@ -124,8 +124,10 @@ switch to NIM) to get fully synthesized, cited output.
   Regenerate with `python scripts/generate_report.py --all`.
 - **Model-development lifecycle** — bake-off leaderboard, development document,
   independent validation report, and internal audit report (three lines of
-  defense): [`docs/lifecycle/`](docs/lifecycle/README.md).
-  Regenerate with `python scripts/generate_lifecycle.py --task fraud`.
+  defense): [`docs/lifecycle/`](docs/lifecycle/README.md). Runs unchanged across
+  model types — **fraud** (champion: a tree) and **credit PD** (champion:
+  logistic regression) — to show the pipeline generalizes. Regenerate with
+  `python scripts/generate_lifecycle.py --all`.
 
 ## Run on real NVIDIA infra
 
@@ -146,7 +148,7 @@ Switching OpenAI → NVIDIA NIM is a single env change (`LLM_PROVIDER`), because
 NIM exposes an OpenAI-compatible API. That migration story is a core talking
 point of the demo.
 
-## Observability (Prometheus + Grafana)
+## Observability (metrics + traces)
 
 Every A2A agent exposes Prometheus `/metrics` (request rate, p95 latency,
 errors), Triton exports native inference metrics, and the DCGM exporter adds GPU
@@ -157,10 +159,20 @@ serving-on-heuristic, GPU hot/full, agent errors) routed through **Alertmanager*
 (warning → Slack). The same Grafana dashboard, alerts, and routing run locally
 and on GKE.
 
+**Distributed tracing:** the agents are instrumented with **OpenTelemetry**, and
+because trace context propagates over the A2A/MCP HTTP calls, one governance run
+shows up as a single connected **trace** across agents (orchestrator → validation
+/ fraud / retriever → report, plus the MCP tool spans) in **Jaeger**. This is the
+same span model NVIDIA's NeMo Agent Toolkit (AIQ) emits, so it's the seam for
+AIQ-based tracing/eval later. Tracing activates only when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set (the `monitoring` profile points it at
+Jaeger); it is a silent no-op otherwise.
+
 - **Local:** `docker compose --profile monitoring up` → Grafana at
   [localhost:3000](http://localhost:3000) (`admin` / `reg-agents`), dashboard
-  **"reg-agents — agents & Triton"**. Generate traffic with the demo scripts and
-  watch it populate.
+  **"reg-agents — agents, model & GPU"**; **Jaeger** UI at
+  [localhost:16686](http://localhost:16686). Generate traffic with the demo
+  scripts and watch metrics populate and traces appear.
 - **GKE:** `kube-prometheus-stack` + ServiceMonitors + the dashboard —
   see [`k8s/monitoring/README.md`](k8s/monitoring/README.md).
 
@@ -170,13 +182,13 @@ and on GKE.
 
 ```
 reg_agents/
-  common/        llm, embeddings, vector store, A2A protocol, MCP client, corpus, modeling
+  common/        llm, embeddings, vector store, A2A protocol, MCP client, corpus, modeling, telemetry (OTel)
   mcp_servers/   regulations / model-registry / fraud / modeling  (MCP tool servers, SSE)
   agents/        governance: orchestrator + retriever / validation / fraud / report
                  lifecycle:  lifecycle-orchestrator + developer / validator / audit (A2A)
   ui/            Streamlit demo
-data/            regulations corpus, model cards, sample transactions
-docs/            architecture, sample reports + lifecycle artifacts
+data/            regulations corpus, model cards, sample transactions + credit data
+docs/            architecture, sample reports + lifecycle artifacts (fraud + credit)
 triton/          Triton FIL model repository (config.pbtxt) + export script
 brev/            NVIDIA Brev GPU runbook (Triton on NVIDIA infra, no hyperscaler)
 k8s/             GKE manifests (Triton GPU tier + CPU agents), optional self-hosted NIM

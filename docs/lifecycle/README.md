@@ -23,10 +23,16 @@ cuML / XGBoost; the LLM reasoning maps from OpenAI to NVIDIA NIM with one env va
 Generate deterministically (no server needed):
 
 ```bash
-python scripts/generate_lifecycle.py --task fraud
+python scripts/generate_lifecycle.py --task fraud     # one task
+python scripts/generate_lifecycle.py --all            # every task
 # or run through the live A2A stack:
 python scripts/lifecycle_run.py --task fraud
 ```
+
+The same pipeline runs unchanged across different model types — only the dataset
+and task definition differ (`reg_agents/common/modeling.py`). That the champion
+comes out *different* per task (a tree for fraud, logistic regression for credit)
+is the point: the bake-off + three-lines process generalizes.
 
 ## `fraud/` — Card Transaction Fraud Detection
 
@@ -41,3 +47,19 @@ python scripts/lifecycle_run.py --task fraud
 > the independent validator flags that a challenger scored higher on PR-AUC /
 > recall under class imbalance and returns an **Approve-with-Conditions**
 > disposition — exactly the kind of finding a real second line would raise.
+
+## `credit/` — Consumer Credit Default (PD) Scorecard
+
+| # | Artifact | Owner (line of defense) |
+| --- | --- | --- |
+| 00 | [Model bake-off leaderboard](credit/00_model_bakeoff_leaderboard.md) | Developer (1st) |
+| 01 | [Model development document](credit/01_model_development_document.md) | Developer (1st) |
+| 02 | [Independent validation report](credit/02_independent_validation_report.md) | Validator (2nd) |
+| 03 | [Internal audit report](credit/03_internal_audit_report.md) | Audit (3rd) |
+
+> A second task proves the bake-off generalizes: here **logistic regression** wins
+> (ROC-AUC ~0.90) — a transparent, adverse-action-explainable model, which is
+> exactly what you'd want to defend under **ECOA/Reg B and FCRA**. Protected-class
+> attributes and proxies (age, ZIP) are deliberately excluded from the features,
+> and the validator's fair-lending review calls out the remaining disparate-impact
+> testing gap.

@@ -133,9 +133,20 @@ The agents/MCP servers are **identical** across environments; only config
 (env vars in `ConfigMap`) changes. That portability is the core value: develop
 locally against OpenAI, deploy on the NVIDIA stack with no code changes.
 
+## Observability
+- **Metrics:** every agent exposes Prometheus `/metrics`; Triton and DCGM export
+  serving + GPU metrics; fraud guardrails are counters. Scraped by Prometheus
+  (compose) / kube-prometheus-stack (GKE), visualized in Grafana, alerted via
+  Alertmanager.
+- **Traces:** agents are instrumented with **OpenTelemetry** (`common/telemetry.py`).
+  Trace context propagates over the A2A/MCP HTTP calls, so one governance run is a
+  single connected trace (orchestrator → validation / fraud / retriever → report +
+  MCP tool spans) in **Jaeger**. Same span model as NVIDIA's NeMo Agent Toolkit
+  (AIQ), so AIQ tracing/eval can slot in later. Enabled via
+  `OTEL_EXPORTER_OTLP_ENDPOINT` (monitoring profile); no-op otherwise.
+
 ## Scaling & production notes
 - Each agent/MCP server scales independently (HPA on CPU/RPS).
 - NIM and Triton scale on the GPU pool; use separate GPU nodes or MIG slices to
   co-locate the 8B LLM, the embedder, and Triton cost-effectively.
-- Add observability (OpenTelemetry traces across A2A hops), auth on the A2A
-  endpoints, and per-tool rate limiting before real production.
+- Next: auth on the A2A endpoints and per-tool rate limiting before real production.

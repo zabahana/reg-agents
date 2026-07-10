@@ -98,6 +98,16 @@ def build_a2a_app(card: AgentCard, handler: Handler) -> FastAPI:
     except Exception:  # noqa: BLE001 - metrics are best-effort
         pass
 
+    # OpenTelemetry tracing (server span per request + context extraction) and
+    # httpx client instrumentation, so a governance run is one connected trace
+    # across A2A hops in Jaeger. No-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    try:
+        from reg_agents.common import telemetry
+
+        telemetry.instrument_fastapi(app, service_name=card.name)
+    except Exception:  # noqa: BLE001 - tracing is best-effort
+        pass
+
     @app.get("/.well-known/agent-card.json")
     def agent_card() -> Dict[str, Any]:
         return card.model_dump()

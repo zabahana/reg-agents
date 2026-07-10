@@ -26,6 +26,14 @@ xgboost==2.1.1
 # kube-prometheus-stack; visualized in Grafana). ---
 prometheus-fastapi-instrumentator==7.0.0
 
+# --- Observability: OpenTelemetry distributed tracing across A2A hops
+# (exported to Jaeger via OTLP). Same span model AIQ / NeMo Agent Toolkit emits.
+# Active only when OTEL_EXPORTER_OTLP_ENDPOINT is set (monitoring profile). ---
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp-proto-http==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-instrumentation-httpx==0.48b0
+
 # --- Demo UI ---
 streamlit==1.40.1
 

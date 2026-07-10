@@ -7,3 +7,11 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: true
+  # Distributed traces (A2A hops) — same pane as the metrics. Jaeger's native
+  # UI is also at :16686; this makes traces browsable inside Grafana too.
+  - name: Jaeger
+    type: jaeger
+    uid: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: true

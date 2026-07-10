@@ -54,10 +54,12 @@ cat <<'EOF'
     Prometheus    :9090   (/alerts shows the guardrails)
     Alertmanager  :9093   (routed guardrail alerts; set Slack webhook in monitoring/alertmanager.yml)
     Grafana       :3000   (admin / reg-agents) -> "reg-agents — agents, model & GPU"
+    Jaeger        :16686  (A2A distributed traces per governance/lifecycle run)
 
     Generate traffic:
       docker compose exec orchestrator python scripts/demo_run.py
       docker compose exec lifecycle-orchestrator python scripts/lifecycle_run.py --task fraud
+      docker compose exec lifecycle-orchestrator python scripts/lifecycle_run.py --task credit
 
     Tear down:
       docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile monitoring down

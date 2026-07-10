@@ -71,6 +71,24 @@ TASKS: Dict[str, Task] = {
         numeric_features=["amount", "merchant_risk", "hour", "velocity_24h"],
         bool_features=["is_foreign"],
     ),
+    "credit": Task(
+        task_id="credit",
+        name="Consumer Credit Default (PD) Scorecard",
+        objective=(
+            "Estimate probability of default (PD) for consumer loan applications "
+            "to support credit decisioning, under ECOA/Reg B and FCRA "
+            "fair-lending constraints."
+        ),
+        csv_path=os.path.join(_DATA_DIR, "credit", "sample_credit.csv"),
+        target="default",
+        # Protected-class attributes/proxies (age, ZIP, sex, race) are excluded
+        # by design — the Validator/Audit agents call this out under ECOA.
+        numeric_features=[
+            "dti", "utilization", "delinq_2yr", "inquiries_6m",
+            "annual_income", "loan_amount", "emp_length_yrs", "num_open_accounts",
+        ],
+        bool_features=["is_homeowner"],
+    ),
 }
 
 

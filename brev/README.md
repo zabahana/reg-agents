@@ -34,7 +34,7 @@ brev shell reg-agents
 
 **Option B — Console** ([brev.nvidia.com](https://brev.nvidia.com))
 Create Instance → pick a GPU (L40S/A100/H100) → base image with Docker + CUDA →
-expose ports **8501, 8000, 8002, 3000** → Create, then SSH in.
+expose ports **8501, 8000, 8002, 3000, 16686** → Create, then SSH in.
 
 The Ubuntu + Docker + NVIDIA Container Toolkit stack is preinstalled on Brev VM
 images, so `--gpus`/`deploy.resources.devices` works out of the box.
@@ -103,10 +103,14 @@ Now reachable on the Brev VM's public host (ports you exposed):
 | Prometheus | 9090 | http://<brev-host>:9090/alerts (guardrails) |
 | Alertmanager | 9093 | http://<brev-host>:9093 (routed alerts) |
 | Grafana    | 3000 | http://<brev-host>:3000  (admin / reg-agents) |
+| Jaeger     | 16686 | http://<brev-host>:16686 (A2A traces) |
 
 ### Observability + guardrails you get
 
 - **Agents:** request rate, p95 latency, 5xx rate.
+- **Traces (Jaeger):** each governance/lifecycle run is one connected trace across
+  the A2A hops (orchestrator → validation / fraud / retriever → report + MCP tool
+  spans) via OpenTelemetry — the same spans AIQ emits.
 - **Fraud model:** decisions by outcome, probability p50/p95, **BLOCK-rate**
   guardrail, and guardrail-trigger counts (input clamps, prob reset, Triton
   fallback — enforced in the fraud MCP server).
@@ -159,7 +163,7 @@ brev delete reg-agents   # tear down entirely
 In the Brev console → **Launchables → Create Launchable**:
 - **Container mode**, point at this repo (`docker-compose.yml` + `docker-compose.gpu.yml`).
 - GPU: L40S (or A100/H100).
-- Expose ports **8501, 8000, 8002, 3000**.
+- Expose ports **8501, 8000, 8002, 3000, 16686**.
 - Add `NIM_API_KEY` as an environment variable.
 
 Generate the link and anyone can spin up the identical GPU demo in one click —

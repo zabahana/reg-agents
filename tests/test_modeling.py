@@ -37,3 +37,13 @@ def test_unknown_task_raises():
     except KeyError:
         return
     raise AssertionError("expected KeyError for unknown task")
+
+
+def test_bakeoff_generalizes_to_credit_task():
+    """The same bake-off runs on a different task and beats the naive baseline."""
+    result = modeling.run_bakeoff("credit")
+    names = {r["model"] for r in result["leaderboard"]}
+    assert names == set(modeling.CANDIDATE_DESCRIPTIONS)
+    scores = {r["model"]: r["roc_auc"] for r in result["leaderboard"]}
+    assert result["champion"]["roc_auc"] > scores["rules_baseline"]
+    assert result["champion"] == result["leaderboard"][0]
