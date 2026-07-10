@@ -29,3 +29,10 @@ scrape_configs:
         labels: { app: audit-agent }
       - targets: ["lifecycle-orchestrator:8108"]
         labels: { app: lifecycle-orchestrator }
+
+  # Triton (only present with docker-compose.gpu.yml). Harmless if absent — the
+  # target simply shows as down and the Triton panels stay empty.
+  - job_name: reg-agents-triton
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["triton:8002"]

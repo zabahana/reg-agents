@@ -1,0 +1,50 @@
+# GPU overlay: adds a real Triton Inference Server serving the fraud model on an
+# NVIDIA GPU, and points the fraud MCP server at it. Designed to run on an
+# NVIDIA Brev GPU instance (or any host with the NVIDIA Container Toolkit).
+#
+#   # 1. generate the model repo (needs the app image or `brew install libomp`)
+#   docker compose build
+#   docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" fraud-mcp \
+#     python scripts/export_triton_model.py
+#
+#   # 2. bring up the full stack WITH GPU Triton + monitoring
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+#     --profile monitoring up
+#
+# The fraud MCP server now reports backend "triton-gpu" instead of the local
+# heuristic. See brev/README.md for the end-to-end Brev walkthrough.
+
+services:
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.08-py3
+    command: >
+      tritonserver
+      --model-repository=/models
+      --model-control-mode=poll
+      --allow-metrics=true
+    volumes:
+      - ./triton/model_repository:/models:ro
+    ports:
+      - "8000:8000"   # HTTP / KServe v2 inference
+      - "8001:8001"   # gRPC
+      - "8002:8002"   # Prometheus metrics
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8000 && echo -e 'GET /v2/health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # Route the fraud MCP server to the GPU Triton instead of its local heuristic.
+  fraud-mcp:
+    environment:
+      TRITON_URL: http://triton:8000
+    depends_on:
+      - triton

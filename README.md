@@ -132,6 +132,11 @@ switch to NIM) to get fully synthesized, cited output.
 - **Local Docker (CPU agents + hosted NIM):** set `LLM_PROVIDER=nim` and a
   `NIM_API_KEY` from [build.nvidia.com](https://build.nvidia.com), then
   `docker compose up`.
+- **NVIDIA GPUs, no hyperscaler (Brev):** run Triton + the fraud model on a
+  self-serve [NVIDIA Brev](https://brev.nvidia.com) GPU VM with hosted NIM for
+  the LLM — the whole demo on NVIDIA infra, end to end. See
+  [`brev/README.md`](brev/README.md) (`docker compose -f docker-compose.yml -f
+  docker-compose.gpu.yml --profile monitoring up`).
 - **GKE (hosted NIM for the LLM + self-hosted Triton for the fraud model):**
   follow [`k8s/README.md`](k8s/README.md). Triton is the only GPU workload, so
   the GPU pool is a single node. To self-host NIM on GPU instead, apply
@@ -168,6 +173,7 @@ reg_agents/
 data/            regulations corpus, model cards, sample transactions
 docs/            architecture, sample reports + lifecycle artifacts
 triton/          Triton FIL model repository (config.pbtxt) + export script
+brev/            NVIDIA Brev GPU runbook (Triton on NVIDIA infra, no hyperscaler)
 k8s/             GKE manifests (Triton GPU tier + CPU agents), optional self-hosted NIM
 k8s/monitoring/  kube-prometheus-stack values + ServiceMonitors + Grafana dashboard
 monitoring/      local Prometheus + Grafana (docker-compose --profile monitoring)
