@@ -7,10 +7,17 @@ Shows the multi-agent flow and renders the final audit-ready report.
 
 from __future__ import annotations
 
-import streamlit as st
+import os
+import sys
 
-from reg_agents.agents.orchestrator import run_review
-from reg_agents.config import get_settings
+# `streamlit run` puts this file's directory on sys.path, not the repo root, so
+# make the reg_agents package importable regardless of how the UI is launched.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+import streamlit as st  # noqa: E402
+
+from reg_agents.agents.orchestrator import run_review  # noqa: E402
+from reg_agents.config import get_settings  # noqa: E402
 
 st.set_page_config(page_title="reg-agents — Model Governance", layout="wide")
 
