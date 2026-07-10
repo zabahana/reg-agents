@@ -87,6 +87,12 @@ fallback, fraud scoring uses a transparent heuristic, and agents return the raw
 tool output with a note that the LLM was unavailable. Add `OPENAI_API_KEY` (or
 switch to NIM) to get fully synthesized, cited output.
 
+### Sample outputs
+
+Committed reports show the same pipeline generalizing across model types (fraud,
+GenAI complaint classifier, AML) — see [`docs/reports/`](docs/reports/README.md).
+Regenerate them with `python scripts/generate_report.py --all`.
+
 ## Run on real NVIDIA infra
 
 - **Local Docker (CPU agents + hosted NIM):** set `LLM_PROVIDER=nim` and a

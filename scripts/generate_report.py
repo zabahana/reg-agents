@@ -1,12 +1,19 @@
-"""Generate a sample governance report artifact (robust, in-process).
+"""Generate sample governance report artifact(s) (robust, in-process).
 
 Runs the SAME agent logic (identical prompts + tools) as the live A2A/MCP stack,
 but in-process -- direct tool calls and LLM calls, no HTTP/SSE -- so it is
-deterministic and cannot hang on network-of-services flakiness. The live
-distributed path (A2A over HTTP, tools over MCP/SSE) runs in docker-compose /
-k8s and the Streamlit UI; this script just captures a clean artifact.
+deterministic and cannot hang. The live distributed path (A2A over HTTP, tools
+over MCP/SSE) runs in docker-compose / k8s and the Streamlit UI; this script
+just captures clean artifacts.
+
+The pipeline generalizes across model types: the fraud detector gets a live
+transaction-scoring section; other models (credit, AML, GenAI, PPNR) get a
+performance summary derived from their model card. The regulatory-context query
+is tailored to each model's stated use.
 
     python scripts/generate_report.py --model FRAUD-XGB-GNN-001
+    python scripts/generate_report.py --model GENAI-COMPLAINT-030 --model AML-TM-021
+    python scripts/generate_report.py --all
 """
 
 from __future__ import annotations
@@ -28,17 +35,26 @@ from reg_agents.common.corpus import RegulationRetriever  # noqa: E402
 from reg_agents.config import get_settings  # noqa: E402
 from reg_agents.mcp_servers.fraud_server import score_transaction  # noqa: E402
 from reg_agents.mcp_servers.model_registry_server import (  # noqa: E402
+    _INVENTORY,
     get_model_documentation,
     get_model_metadata,
 )
 
-OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                   "docs", "sample_report.md")
+REPORTS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "reports"
+)
+
+_PERF_SYS = (
+    "You are a model validator summarizing a model's performance and monitoring "
+    "for a governance report. Using ONLY the model card, summarize reported "
+    "performance metrics, monitoring approach, and the top risks/limitations in "
+    "4-6 sentences. Do not invent numbers."
+)
 
 _retriever = RegulationRetriever()
 
 
-def _search_regulations(query: str, k: int = 5) -> str:
+def _search(query: str, k: int = 5) -> str:
     hits = _retriever.search(query, k)
     return json.dumps(
         [
@@ -61,73 +77,86 @@ def _reason(system: str, user: str, fallback: str, **kw) -> str:
         return f"[LLM unavailable: {exc}]\n\n{fallback}"
 
 
-def run_review_inprocess(model_id: str, txn: dict) -> dict:
-    meta = get_model_metadata(model_id)
-    docs = get_model_documentation(model_id)
-    val_rules = _search_regulations(
-        f"model risk management validation and monitoring requirements for {model_id}", 5
+def _reg_query(use: str) -> str:
+    return (
+        f"SR 11-7 model risk management requirements and applicable fair-lending / "
+        f"consumer-protection / BSA-AML rules (ECOA, FCRA, UDAAP, Reg E, FFIEC "
+        f"BSA/AML, NIST AI RMF) for validating, explaining, and monitoring a model "
+        f"used for: {use}"
     )
+
+
+def build_report(model_id: str) -> dict:
+    meta_raw = get_model_metadata(model_id)
+    meta = json.loads(meta_raw)
+    if "error" in meta:
+        raise SystemExit(f"unknown model_id: {model_id}")
+    docs = get_model_documentation(model_id)
+    use = meta.get("use", "")
+
     validation = _reason(
         VALIDATION_SYS,
-        f"MODEL METADATA:\n{meta}\n\nMODEL DOCUMENTATION:\n{docs}\n\n"
-        f"RELEVANT REGULATIONS:\n{val_rules}",
-        fallback=f"Metadata:\n{meta}\n\nRules:\n{val_rules}",
+        f"MODEL METADATA:\n{meta_raw}\n\nMODEL DOCUMENTATION:\n{docs}\n\n"
+        f"RELEVANT REGULATIONS:\n{_search('model validation and monitoring requirements: ' + use, 5)}",
+        fallback=f"Metadata:\n{meta_raw}",
         max_tokens=1400,
     )
 
-    score = score_transaction(**txn)
-    fraud = _reason(FRAUD_SYS, f"Fraud model output (JSON):\n{score}",
-                    fallback=f"Fraud output:\n{score}")
+    is_fraud_detector = model_id == "FRAUD-XGB-GNN-001"
+    if is_fraud_detector:
+        txn = {"amount": 4200.0, "is_foreign": True, "merchant_risk": 0.6,
+               "hour": 2, "velocity_24h": 9}
+        score = score_transaction(**txn)
+        perf = _reason(FRAUD_SYS, f"Fraud model output (JSON):\n{score}",
+                       fallback=f"Fraud output:\n{score}")
+        perf_section = (
+            f"Transaction under review: `{txn}`\n\n```json\n{score}\n```\n\n{perf}"
+        )
+        perf_title = "Fraud Agent analysis (live transaction scoring)"
+    else:
+        perf = _reason(_PERF_SYS, f"MODEL CARD:\n{docs}",
+                       fallback="Performance summary unavailable.")
+        perf_section = perf
+        perf_title = "Performance & Monitoring summary"
 
-    reg_ctx_rules = _search_regulations(
-        "SR 11-7 model risk management requirements and fair-lending / consumer "
-        "protection rules (ECOA, FCRA, UDAAP, Reg E) for validating, explaining, "
-        "and monitoring an AI-based card transaction fraud model", 6
-    )
+    reg_rules = _search(_reg_query(use), 6)
     reg_ctx = _reason(
         RETRIEVER_SYS,
         f"Question:\nWhat regulatory requirements apply to validating and "
-        f"monitoring an AI-based fraud model?\n\nRegulation excerpts (JSON):\n{reg_ctx_rules}",
-        fallback=f"Excerpts:\n{reg_ctx_rules}",
+        f"monitoring a model used for '{use}'?\n\nRegulation excerpts (JSON):\n{reg_rules}",
+        fallback=f"Excerpts:\n{reg_rules}",
+        max_tokens=1200,
     )
 
     combined = (
-        f"MODEL ID: {model_id}\n\n## Validation Findings\n{validation}\n\n"
-        f"## Fraud / Performance Analysis\n{score}\n{fraud}\n\n"
+        f"MODEL ID: {model_id} ({meta.get('name')})\nUSE: {use}\n\n"
+        f"## Validation Findings\n{validation}\n\n"
+        f"## {perf_title}\n{perf_section}\n\n"
         f"## Regulatory Context\n{reg_ctx}\n"
     )
     report = _reason(REPORT_SYS, f"Source material:\n\n{combined}",
                      fallback=f"# Governance Report\n\n{combined}", max_tokens=1800)
     return {
-        "validation": validation,
-        "fraud_score": score,
-        "fraud": fraud,
-        "regulatory_context": reg_ctx,
-        "report": report,
+        "meta": meta, "validation": validation, "perf_title": perf_title,
+        "perf_section": perf_section, "regulatory_context": reg_ctx, "report": report,
     }
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default="FRAUD-XGB-GNN-001")
-    args = ap.parse_args()
-    txn = {"amount": 4200.0, "is_foreign": True, "merchant_risk": 0.6,
-           "hour": 2, "velocity_24h": 9}
-
+def write_report(model_id: str) -> str:
     s = get_settings()
-    r = run_review_inprocess(args.model, txn)
+    r = build_report(model_id)
     ts = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    m = r["meta"]
+    doc = f"""# Sample Governance Report — {model_id}
 
-    doc = f"""# Sample Governance Report — {args.model}
+**{m.get('name')}** · type: {m.get('type')} · tier: {m.get('tier')} · owner: {m.get('owner')}
 
 > Generated by the `reg-agents` pipeline on {ts}.
-> LLM provider: **{s.llm_provider}** (`{s.active_model}`) ·
-> Embeddings: **{s.embedding_provider}** · Vector backend: **{s.vector_backend}** ·
-> Fraud backend: **{s.triton_url or 'local heuristic'}**
+> LLM: **{s.llm_provider}** (`{s.active_model}`) · Embeddings: **{s.embedding_provider}** ·
+> Vector backend: **{s.vector_backend}** · Fraud backend: **{s.triton_url or 'local heuristic'}**
 >
-> Same agent logic as the live A2A/MCP stack (validation, fraud, retriever,
-> report), captured here as a committed artifact. In production these run as
-> independent A2A services calling tools over MCP; see docs/ARCHITECTURE.md.
+> Same agent logic as the live A2A/MCP stack (validation, fraud/performance,
+> retriever, report), captured as a committed artifact. See docs/ARCHITECTURE.md.
 
 ---
 
@@ -143,15 +172,9 @@ def main() -> None:
 
 ---
 
-## Appendix B — Fraud Agent analysis
+## Appendix B — {r['perf_title']}
 
-Transaction under review: `{txn}`
-
-```json
-{r['fraud_score']}
-```
-
-{r['fraud']}
+{r['perf_section']}
 
 ---
 
@@ -159,9 +182,24 @@ Transaction under review: `{txn}`
 
 {r['regulatory_context']}
 """
-    with open(OUT, "w", encoding="utf-8") as fh:
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+    out = os.path.join(REPORTS_DIR, f"{model_id}.md")
+    with open(out, "w", encoding="utf-8") as fh:
         fh.write(doc)
-    print(f"wrote {OUT} ({len(doc)} chars)")
+    return out
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", action="append", default=[])
+    ap.add_argument("--all", action="store_true", help="generate for every model")
+    args = ap.parse_args()
+
+    models = list(_INVENTORY) if args.all else (args.model or ["FRAUD-XGB-GNN-001"])
+    for mid in models:
+        out = write_report(mid)
+        size = os.path.getsize(out)
+        print(f"wrote {out} ({size} bytes)")
 
 
 if __name__ == "__main__":
