@@ -1,38 +1,48 @@
 # Shared configuration for all agents/MCP servers on GKE.
-# In-cluster the agents talk to NVIDIA NIM (LLM), NeMo Retriever (embeddings),
-# and Triton (fraud model) via ClusterIP service DNS.
+#
+# Deployment profile: **hosted NIM** for LLM + embeddings (NVIDIA build.nvidia.com
+# catalog — no LLM GPU needed), and **self-hosted Triton** for the fraud model
+# (the only GPU workload). This keeps the GPU pool to a single node.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: reg-agents-config
   namespace: reg-agents
 data:
+  # --- LLM: hosted NIM catalog (OpenAI-compatible). Requires NIM_API_KEY. -----
   LLM_PROVIDER: "nim"
-  NIM_BASE_URL: "http://nim-llm:8000/v1"
+  NIM_BASE_URL: "https://integrate.api.nvidia.com/v1"
   NIM_MODEL: "meta/llama-3.1-8b-instruct"
 
+  # --- Embeddings: hosted NeMo Retriever (also uses NIM_API_KEY). -------------
   EMBEDDING_PROVIDER: "nemo"
-  NEMO_EMBED_BASE_URL: "http://nemo-retriever:8000/v1"
+  NEMO_EMBED_BASE_URL: "https://integrate.api.nvidia.com/v1"
   NEMO_EMBED_MODEL: "nvidia/nv-embedqa-e5-v5"
 
-  VECTOR_BACKEND: "milvus"
-  MILVUS_URI: "http://milvus:19530"
+  # --- Vector store: FAISS in-pod (swap to Milvus+cuVS for the GPU upgrade). --
+  VECTOR_BACKEND: "faiss"
 
+  # --- Fraud model: self-hosted Triton (GPU) via cluster DNS. ----------------
   TRITON_URL: "http://triton:8000"
 
   REGULATIONS_MCP_URL: "http://regulations-mcp:9101/sse"
   MODEL_REGISTRY_MCP_URL: "http://model-registry-mcp:9102/sse"
   FRAUD_MCP_URL: "http://fraud-mcp:9103/sse"
+  MODELING_MCP_URL: "http://modeling-mcp:9104/sse"
 
   RETRIEVER_AGENT_URL: "http://retriever-agent:8101"
   VALIDATION_AGENT_URL: "http://validation-agent:8102"
   FRAUD_AGENT_URL: "http://fraud-agent:8103"
   REPORT_AGENT_URL: "http://report-agent:8104"
+  DEVELOPER_AGENT_URL: "http://developer-agent:8105"
+  VALIDATOR_AGENT_URL: "http://validator-agent:8106"
+  AUDIT_AGENT_URL: "http://audit-agent:8107"
+  LIFECYCLE_ORCHESTRATOR_URL: "http://lifecycle-orchestrator:8108"
 ---
-# Example only. Create the real secret with:
+# Create the real secret with your hosted-NIM key (get one at build.nvidia.com):
 #   kubectl -n reg-agents create secret generic reg-agents-secrets \
 #     --from-literal=NIM_API_KEY=nvapi-xxxx
-# (NIM_API_KEY is only needed if you also call the hosted NVIDIA catalog.)
+# Do NOT commit a real key. This manifest is a placeholder for `kubectl apply`.
 apiVersion: v1
 kind: Secret
 metadata:
@@ -40,5 +50,5 @@ metadata:
   namespace: reg-agents
 type: Opaque
 stringData:
-  NIM_API_KEY: "replace-me-or-leave-blank-for-in-cluster-nim"
+  NIM_API_KEY: "replace-with-nvapi-key"
   OPENAI_API_KEY: ""

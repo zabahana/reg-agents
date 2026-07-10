@@ -20,6 +20,11 @@ numpy==1.26.4
 # On GPU these map to RAPIDS cuML / XGBoost; the API is intentionally similar.
 scikit-learn==1.5.2
 pandas==2.2.3
+xgboost==2.1.1
+
+# --- Observability: Prometheus metrics for the A2A agents (scraped by
+# kube-prometheus-stack; visualized in Grafana). ---
+prometheus-fastapi-instrumentator==7.0.0
 
 # --- Demo UI ---
 streamlit==1.40.1

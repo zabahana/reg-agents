@@ -88,6 +88,16 @@ def build_a2a_app(card: AgentCard, handler: Handler) -> FastAPI:
     """Wrap a handler(message, metadata) -> Task|str in an A2A FastAPI app."""
     app = FastAPI(title=card.name, version=card.version)
 
+    # Prometheus /metrics endpoint (request rate, latency, in-progress, errors)
+    # for every agent, scraped by kube-prometheus-stack and shown in Grafana.
+    # Optional so local runs work even if the instrumentator isn't installed.
+    try:
+        from prometheus_fastapi_instrumentator import Instrumentator
+
+        Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+    except Exception:  # noqa: BLE001 - metrics are best-effort
+        pass
+
     @app.get("/.well-known/agent-card.json")
     def agent_card() -> Dict[str, Any]:
         return card.model_dump()

@@ -1,0 +1,42 @@
+# ServiceMonitors tell the kube-prometheus-stack Prometheus what to scrape.
+#
+# 1) A2A agents — FastAPI /metrics on the named `http` port. `targetLabels: [app]`
+#    copies each Service's `app` label onto its metrics so Grafana can group by
+#    agent. Selected by `part-of: reg-agents` (Triton is excluded on purpose).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: reg-agents-agents
+  namespace: reg-agents
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [reg-agents]
+  selector:
+    matchLabels:
+      part-of: reg-agents
+  targetLabels: [app]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+# 2) Triton — native Prometheus metrics on the `metrics` port (8002) at /metrics.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: reg-agents-triton
+  namespace: reg-agents
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [reg-agents]
+  selector:
+    matchLabels:
+      app: triton
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

@@ -1,0 +1,29 @@
+# Triton FIL backend config for the fraud XGBoost model.
+# Feature order must match reg_agents/mcp_servers/fraud_server.py:
+#   [amount, is_foreign, merchant_risk, hour, velocity_24h]
+backend: "fil"
+max_batch_size: 8192
+input [
+  {
+    name: "input__0"
+    data_type: TYPE_FP32
+    dims: [ 5 ]
+  }
+]
+output [
+  {
+    name: "output__0"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  }
+]
+instance_group [{ kind: KIND_GPU }]
+parameters [
+  { key: "model_type"    value: { string_value: "xgboost_json" } },
+  # output_class=false → return the raw model output. For an XGBoost
+  # binary:logistic model that is the positive-class probability (0..1),
+  # which is exactly what fraud_server reads at outputs[0].data[0].
+  { key: "output_class"  value: { string_value: "false" } },
+  { key: "storage_type"  value: { string_value: "AUTO" } }
+]
+dynamic_batching { max_queue_delay_microseconds: 1000 }

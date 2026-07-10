@@ -86,3 +86,32 @@ metadata: { name: fraud-mcp, namespace: reg-agents }
 spec:
   selector: { app: fraud-mcp }
   ports: [{ port: 9103, targetPort: 9103 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: modeling-mcp
+  namespace: reg-agents
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: modeling-mcp } }
+  template:
+    metadata: { labels: { app: modeling-mcp } }
+    spec:
+      containers:
+        - name: app
+          image: REPLACE_IMAGE
+          command: ["python", "-m", "reg_agents.mcp_servers.modeling_server"]
+          env:
+            - { name: PORT, value: "9104" }
+          envFrom:
+            - configMapRef: { name: reg-agents-config }
+            - secretRef: { name: reg-agents-secrets }
+          ports: [{ containerPort: 9104 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: modeling-mcp, namespace: reg-agents }
+spec:
+  selector: { app: modeling-mcp }
+  ports: [{ port: 9104, targetPort: 9104 }]

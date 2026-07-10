@@ -1,0 +1,31 @@
+# Local Prometheus scrape config for the docker-compose monitoring profile.
+# Each A2A agent exposes /metrics (prometheus-fastapi-instrumentator). The `app`
+# label matches what the ServiceMonitor sets on GKE, so the same Grafana
+# dashboard works in both places. (Triton isn't run locally — no GPU — so its
+# panels populate only on GKE.)
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: reg-agents-agents
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["orchestrator:8100"]
+        labels: { app: orchestrator }
+      - targets: ["retriever-agent:8101"]
+        labels: { app: retriever-agent }
+      - targets: ["validation-agent:8102"]
+        labels: { app: validation-agent }
+      - targets: ["fraud-agent:8103"]
+        labels: { app: fraud-agent }
+      - targets: ["report-agent:8104"]
+        labels: { app: report-agent }
+      - targets: ["developer-agent:8105"]
+        labels: { app: developer-agent }
+      - targets: ["validator-agent:8106"]
+        labels: { app: validator-agent }
+      - targets: ["audit-agent:8107"]
+        labels: { app: audit-agent }
+      - targets: ["lifecycle-orchestrator:8108"]
+        labels: { app: lifecycle-orchestrator }

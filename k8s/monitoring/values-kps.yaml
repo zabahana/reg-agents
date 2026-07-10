@@ -1,0 +1,24 @@
+# Helm values for kube-prometheus-stack tuned for reg-agents.
+#
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace -f k8s/monitoring/values-kps.yaml
+#
+# - Prometheus picks up ALL ServiceMonitors (not just release-labelled ones).
+# - Grafana auto-imports dashboard ConfigMaps (label grafana_dashboard=1) from
+#   ANY namespace, so our dashboard in the reg-agents namespace is loaded.
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+grafana:
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+  # Demo login (change for anything real):
+  adminPassword: "reg-agents"

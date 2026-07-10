@@ -1,0 +1,76 @@
+# -----------------------------------------------------------------------------
+# GPU inference tier — Triton only.
+#
+# In the hosted-NIM profile (see 01-config.yaml) the LLM and embeddings run on
+# the NVIDIA hosted catalog, so **Triton is the only GPU workload** — it serves
+# the fraud model via the FIL backend (XGBoost). This keeps the GPU pool to a
+# single node.
+#
+# The model repository must be available at /models with:
+#   fraud_xgb_gnn/config.pbtxt + fraud_xgb_gnn/1/xgboost.json
+# Generate it with scripts/export_triton_model.py and mount via GCS (gcsfuse
+# CSI) or a PVC. Until then the fraud MCP server uses its local heuristic.
+#
+# To self-host NIM/NeMo Retriever on GPUs instead of the hosted catalog, also
+# apply k8s/optional/nim-selfhosted.yaml and point 01-config.yaml back at the
+# in-cluster service DNS.
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton
+  namespace: reg-agents
+  labels: { app: triton, part-of: reg-agents }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: triton }
+  template:
+    metadata:
+      labels: { app: triton, part-of: reg-agents }
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: triton
+          image: nvcr.io/nvidia/tritonserver:24.08-py3
+          args:
+            - tritonserver
+            - --model-repository=/models
+            - --model-control-mode=poll
+            - --allow-metrics=true
+          ports:
+            - { name: http, containerPort: 8000 }
+            - { name: grpc, containerPort: 8001 }
+            - { name: metrics, containerPort: 8002 }
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - { name: model-repo, mountPath: /models }
+          readinessProbe:
+            httpGet: { path: /v2/health/ready, port: 8000 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        # Replace emptyDir with a GCS-backed volume (gcsfuse CSI) or a PVC that
+        # holds the model repository. See k8s/README.md and triton/README.md.
+        - name: model-repo
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton
+  namespace: reg-agents
+  labels: { app: triton }
+spec:
+  selector: { app: triton }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
+    - { name: grpc, port: 8001, targetPort: 8001 }
+    - { name: metrics, port: 8002, targetPort: 8002 }

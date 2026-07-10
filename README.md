@@ -132,12 +132,27 @@ switch to NIM) to get fully synthesized, cited output.
 - **Local Docker (CPU agents + hosted NIM):** set `LLM_PROVIDER=nim` and a
   `NIM_API_KEY` from [build.nvidia.com](https://build.nvidia.com), then
   `docker compose up`.
-- **GKE with GPUs (self-hosted NIM + NeMo Retriever + Triton):** follow
-  [`k8s/README.md`](k8s/README.md).
+- **GKE (hosted NIM for the LLM + self-hosted Triton for the fraud model):**
+  follow [`k8s/README.md`](k8s/README.md). Triton is the only GPU workload, so
+  the GPU pool is a single node. To self-host NIM on GPU instead, apply
+  [`k8s/optional/nim-selfhosted.yaml`](k8s/optional/nim-selfhosted.yaml).
 
 Switching OpenAI → NVIDIA NIM is a single env change (`LLM_PROVIDER`), because
 NIM exposes an OpenAI-compatible API. That migration story is a core talking
 point of the demo.
+
+## Observability (Prometheus + Grafana)
+
+Every A2A agent exposes Prometheus `/metrics` (request rate, p95 latency,
+errors), and Triton exports native inference metrics. The same Grafana dashboard
+runs locally and on GKE.
+
+- **Local:** `docker compose --profile monitoring up` → Grafana at
+  [localhost:3000](http://localhost:3000) (`admin` / `reg-agents`), dashboard
+  **"reg-agents — agents & Triton"**. Generate traffic with the demo scripts and
+  watch it populate.
+- **GKE:** `kube-prometheus-stack` + ServiceMonitors + the dashboard —
+  see [`k8s/monitoring/README.md`](k8s/monitoring/README.md).
 
 ---
 
@@ -152,8 +167,11 @@ reg_agents/
   ui/            Streamlit demo
 data/            regulations corpus, model cards, sample transactions
 docs/            architecture, sample reports + lifecycle artifacts
-k8s/             GKE manifests (GPU NIM tier + CPU agents) + setup guide
-scripts/         run_local.sh / stop_local.sh / demo_run.py / lifecycle_run.py / generate_*.py
+triton/          Triton FIL model repository (config.pbtxt) + export script
+k8s/             GKE manifests (Triton GPU tier + CPU agents), optional self-hosted NIM
+k8s/monitoring/  kube-prometheus-stack values + ServiceMonitors + Grafana dashboard
+monitoring/      local Prometheus + Grafana (docker-compose --profile monitoring)
+scripts/         run_local.sh / stop_local.sh / demo_run.py / lifecycle_run.py / export_triton_model.py / generate_*.py
 tests/           offline unit tests
 .github/         CI/CD pipeline
 ```
