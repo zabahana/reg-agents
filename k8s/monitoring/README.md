@@ -30,12 +30,27 @@ helm install kube-prometheus-stack \
 `values-kps.yaml` makes Prometheus pick up all ServiceMonitors and lets the
 Grafana sidecar auto-import dashboards from any namespace.
 
-## Apply the reg-agents monitors + dashboard
+## Apply the reg-agents monitors + dashboard + guardrail alerts
 
 ```bash
 kubectl apply -f k8s/monitoring/servicemonitors.yaml
 kubectl apply -f k8s/monitoring/grafana-dashboard.yaml
+kubectl apply -f k8s/monitoring/prometheusrules.yaml   # guardrail alerts
 ```
+
+### Guardrail alerts (`prometheusrules.yaml`)
+
+| Alert | Guards against |
+|-------|----------------|
+| `HighFraudBlockRate` | BLOCK rate > 50% (10m) — drift / bad threshold / attack |
+| `FraudGuardrailTriggered` | input clamps or prob-reset firing (data quality / model) |
+| `FraudServingOnHeuristic` | Triton path down, scores fell back to the heuristic |
+| `AgentHighErrorRate` / `AgentHighLatencyP95` | agent health |
+| `TritonInferenceFailures` | Triton inference errors |
+| `GPUTemperatureHigh` / `GPUMemoryNearFull` / `GPUSaturated` | GPU health (DCGM) |
+
+They evaluate in Prometheus (see the **Alerts** tab); attach an Alertmanager
+receiver to page. The same rules run locally via `monitoring/alerts.yml`.
 
 ## Open Grafana
 

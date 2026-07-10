@@ -7,6 +7,11 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Guardrail alert rules (visible in the Prometheus "Alerts" tab; wire an
+# Alertmanager for paging). Same rules ship for GKE as a PrometheusRule.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   - job_name: reg-agents-agents
     metrics_path: /metrics
@@ -30,9 +35,14 @@ scrape_configs:
       - targets: ["lifecycle-orchestrator:8108"]
         labels: { app: lifecycle-orchestrator }
 
-  # Triton (only present with docker-compose.gpu.yml). Harmless if absent — the
-  # target simply shows as down and the Triton panels stay empty.
+  # Triton + GPU (only present with docker-compose.gpu.yml). Harmless if absent —
+  # the targets simply show as down and the panels stay empty.
   - job_name: reg-agents-triton
     metrics_path: /metrics
     static_configs:
       - targets: ["triton:8002"]
+
+  - job_name: reg-agents-gpu
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["dcgm-exporter:9400"]

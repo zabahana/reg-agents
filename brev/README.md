@@ -74,6 +74,15 @@ docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" fraud-mcp \
 
 ---
 
+## 3b. Or just run the wrapper
+
+`scripts/brev_up.sh` does steps 3–4 (build → export model → up with GPU +
+monitoring) and waits for Triton:
+
+```bash
+./scripts/brev_up.sh              # or --no-build to reuse the image
+```
+
 ## 4. Bring up the full stack with GPU Triton + monitoring
 
 ```bash
@@ -90,7 +99,21 @@ Now reachable on the Brev VM's public host (ports you exposed):
 | UI         | 8501 | http://<brev-host>:8501      |
 | Triton     | 8000 | http://<brev-host>:8000/v2/health/ready |
 | Triton metrics | 8002 | http://<brev-host>:8002/metrics |
+| GPU metrics (DCGM) | 9400 | http://<brev-host>:9400/metrics |
+| Prometheus | 9090 | http://<brev-host>:9090/alerts (guardrails) |
 | Grafana    | 3000 | http://<brev-host>:3000  (admin / reg-agents) |
+
+### Observability + guardrails you get
+
+- **Agents:** request rate, p95 latency, 5xx rate.
+- **Fraud model:** decisions by outcome, probability p50/p95, **BLOCK-rate**
+  guardrail, and guardrail-trigger counts (input clamps, prob reset, Triton
+  fallback — enforced in the fraud MCP server).
+- **Triton:** inference throughput + queue/compute latency.
+- **GPU (DCGM):** utilization, memory, temperature, power.
+- **Alerts** (`monitoring/alerts.yml`, Prometheus **Alerts** tab): high block
+  rate, guardrail fired, serving-on-heuristic, GPU hot / memory-full / saturated,
+  agent errors/latency, Triton failures.
 
 Brev shows the public URL / SSH port-forward for each exposed port in the
 console and via `brev ports`.

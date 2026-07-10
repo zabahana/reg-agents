@@ -4,12 +4,13 @@
   },
   "editable": true,
   "graphTooltip": 1,
-  "title": "reg-agents \u2014 agents & Triton",
+  "title": "reg-agents \u2014 agents, model & GPU",
   "uid": "reg-agents-overview",
   "tags": [
     "reg-agents",
     "nvidia",
-    "triton"
+    "triton",
+    "gpu"
   ],
   "time": {
     "from": "now-1h",
@@ -17,7 +18,7 @@
   },
   "timepicker": {},
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "templating": {
     "list": [
       {
@@ -151,12 +152,142 @@
     },
     {
       "type": "row",
-      "title": "Triton Inference Server (fraud model)",
+      "title": "Fraud model behavior & guardrails",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 17
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Fraud decisions by outcome (per s)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": "${datasource}",
+          "expr": "sum by (decision) (rate(fraud_decisions_total[5m]))",
+          "legendFormat": "{{decision}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Fraud probability percentiles",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": "${datasource}",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(fraud_probability_bucket[10m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": "${datasource}",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(fraud_probability_bucket[10m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "BLOCK rate (10m) \u2014 guardrail",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.4
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": "${datasource}",
+          "expr": "sum(rate(fraud_decisions_total{decision=\"BLOCK\"}[10m])) / clamp_min(sum(rate(fraud_decisions_total[10m])), 0.001)",
+          "legendFormat": "block rate"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Guardrail triggers by rule (15m)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": "${datasource}",
+          "expr": "sum by (rule) (increase(fraud_guardrail_triggered_total[15m]))",
+          "legendFormat": "{{rule}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Triton Inference Server (fraud model)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
       }
     },
     {
@@ -167,7 +298,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 35
       },
       "fieldConfig": {
         "defaults": {
@@ -185,13 +316,13 @@
     },
     {
       "type": "timeseries",
-      "title": "Triton avg compute latency per inference",
+      "title": "Triton avg queue/compute latency per inference",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 35
       },
       "fieldConfig": {
         "defaults": {
@@ -213,26 +344,123 @@
       ]
     },
     {
+      "type": "row",
+      "title": "GPU (NVIDIA DCGM exporter)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      }
+    },
+    {
       "type": "timeseries",
-      "title": "GPU utilization (requires DCGM exporter)",
+      "title": "GPU utilization %",
       "datasource": "${datasource}",
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 8,
         "x": 0,
-        "y": 26
+        "y": 44
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent"
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
       "targets": [
         {
           "datasource": "${datasource}",
-          "expr": "avg by (gpu, Hostname) (DCGM_FI_DEV_GPU_UTIL)",
-          "legendFormat": "gpu {{gpu}} {{Hostname}}"
+          "expr": "avg by (gpu) (DCGM_FI_DEV_GPU_UTIL)",
+          "legendFormat": "gpu {{gpu}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "GPU memory used (MiB)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": "${datasource}",
+          "expr": "avg by (gpu) (DCGM_FI_DEV_FB_USED)",
+          "legendFormat": "used gpu {{gpu}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "GPU temperature (\u00b0C) \u2014 guardrail > 85",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 44
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": "${datasource}",
+          "expr": "avg by (gpu) (DCGM_FI_DEV_GPU_TEMP)",
+          "legendFormat": "gpu {{gpu}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "GPU power draw (W)",
+      "datasource": "${datasource}",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": "${datasource}",
+          "expr": "avg by (gpu) (DCGM_FI_DEV_POWER_USAGE)",
+          "legendFormat": "gpu {{gpu}}"
         }
       ]
     }

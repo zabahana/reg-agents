@@ -42,6 +42,22 @@ services:
       retries: 20
     restart: unless-stopped
 
+  # GPU metrics exporter (utilization, memory, temp, power) for Prometheus.
+  # Populates the "GPU" panels in Grafana and the GPU guardrail alerts.
+  dcgm-exporter:
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
+    cap_add: [SYS_ADMIN]
+    ports:
+      - "9400:9400"   # /metrics (DCGM_FI_DEV_*)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility]
+    restart: unless-stopped
+
   # Route the fraud MCP server to the GPU Triton instead of its local heuristic.
   fraud-mcp:
     environment:

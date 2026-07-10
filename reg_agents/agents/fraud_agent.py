@@ -50,6 +50,47 @@ _SYS = (
 _DEFAULT_TXN = {"amount": 4200.0, "is_foreign": True, "merchant_risk": 0.6,
                 "hour": 2, "velocity_24h": 9}
 
+# --- Model-behavior metrics (scraped from /metrics; power the Grafana panels
+# and the block-rate / guardrail alerts). Best-effort so tests run without the
+# client installed. ---
+try:
+    from prometheus_client import Counter, Histogram
+
+    _DECISIONS = Counter(
+        "fraud_decisions_total", "Fraud decisions by outcome and backend",
+        ["decision", "backend_kind"],
+    )
+    _PROB = Histogram(
+        "fraud_probability", "Fraud probability score distribution",
+        buckets=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+    )
+    _GUARDRAIL = Counter(
+        "fraud_guardrail_triggered_total", "Model guardrail triggers by rule",
+        ["rule"],
+    )
+except Exception:  # noqa: BLE001
+    _DECISIONS = _PROB = _GUARDRAIL = None
+
+
+def _record_metrics(score_json: str) -> None:
+    if _DECISIONS is None:
+        return
+    try:
+        data = json.loads(score_json)
+    except Exception:  # noqa: BLE001
+        return
+    if not isinstance(data, dict) or "fraud_probability" not in data:
+        return
+    backend = str(data.get("backend", ""))
+    backend_kind = "triton" if backend.startswith("triton") else "heuristic"
+    decision = str(data.get("decision", "UNKNOWN"))
+    _DECISIONS.labels(decision=decision, backend_kind=backend_kind).inc()
+    prob = data.get("fraud_probability")
+    if isinstance(prob, (int, float)):
+        _PROB.observe(float(prob))
+    for rule in data.get("guardrails", []) or []:
+        _GUARDRAIL.labels(rule=str(rule)).inc()
+
 
 def handle(message: Message, metadata: Dict[str, Any]) -> Task:
     txn = metadata.get("transaction")
@@ -61,6 +102,8 @@ def handle(message: Message, metadata: Dict[str, Any]) -> Task:
         score_json = call_tool(settings.fraud_mcp_url, "score_transaction", txn)
     except Exception as exc:  # noqa: BLE001
         score_json = json.dumps({"error": f"fraud MCP unavailable: {exc}"})
+
+    _record_metrics(score_json)
 
     explanation = reason(
         _SYS,

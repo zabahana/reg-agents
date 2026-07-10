@@ -149,8 +149,12 @@ point of the demo.
 ## Observability (Prometheus + Grafana)
 
 Every A2A agent exposes Prometheus `/metrics` (request rate, p95 latency,
-errors), and Triton exports native inference metrics. The same Grafana dashboard
-runs locally and on GKE.
+errors), Triton exports native inference metrics, and the DCGM exporter adds GPU
+metrics (util, memory, temp, power). The fraud model has runtime **guardrails**
+(input clamping + output-range reset + Triton→heuristic fallback) surfaced as
+metrics, plus Prometheus **alerts** (block-rate spike, guardrail fired,
+serving-on-heuristic, GPU hot/full, agent errors). The same Grafana dashboard
+and alerts run locally and on GKE.
 
 - **Local:** `docker compose --profile monitoring up` → Grafana at
   [localhost:3000](http://localhost:3000) (`admin` / `reg-agents`), dashboard
@@ -176,7 +180,7 @@ triton/          Triton FIL model repository (config.pbtxt) + export script
 brev/            NVIDIA Brev GPU runbook (Triton on NVIDIA infra, no hyperscaler)
 k8s/             GKE manifests (Triton GPU tier + CPU agents), optional self-hosted NIM
 k8s/monitoring/  kube-prometheus-stack values + ServiceMonitors + Grafana dashboard
-monitoring/      local Prometheus + Grafana (docker-compose --profile monitoring)
+monitoring/      local Prometheus + Grafana + guardrail alert rules (compose)
 scripts/         run_local.sh / stop_local.sh / demo_run.py / lifecycle_run.py / export_triton_model.py / generate_*.py
 tests/           offline unit tests
 .github/         CI/CD pipeline

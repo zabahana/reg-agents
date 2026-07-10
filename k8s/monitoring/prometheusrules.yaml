@@ -1,0 +1,79 @@
+# Guardrail alerts for GKE (kube-prometheus-stack picks up PrometheusRules).
+# Mirror of monitoring/alerts.yml (local docker-compose).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: reg-agents-guardrails
+  namespace: reg-agents
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: reg-agents-model-guardrails
+      rules:
+        - alert: HighFraudBlockRate
+          expr: |
+            sum(rate(fraud_decisions_total{decision="BLOCK"}[10m]))
+              / clamp_min(sum(rate(fraud_decisions_total[10m])), 0.001) > 0.5
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Fraud BLOCK rate > 50% (10m)"
+            description: "Possible drift, bad threshold, or attack."
+        - alert: FraudGuardrailTriggered
+          expr: sum(increase(fraud_guardrail_triggered_total[15m])) > 0
+          for: 5m
+          labels: { severity: info }
+          annotations:
+            summary: "Fraud model guardrail triggered"
+        - alert: FraudServingOnHeuristic
+          expr: sum(rate(fraud_decisions_total{backend_kind="heuristic"}[10m])) > 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Fraud model falling back to heuristic (Triton unhealthy)"
+    - name: reg-agents-service-guardrails
+      rules:
+        - alert: AgentHighErrorRate
+          expr: |
+            sum by (app) (rate(http_requests_total{status=~"5..|5xx"}[5m]))
+              / clamp_min(sum by (app) (rate(http_requests_total[5m])), 0.001) > 0.05
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.app }} 5xx error rate > 5%"
+        - alert: AgentHighLatencyP95
+          expr: |
+            histogram_quantile(0.95,
+              sum by (app, le) (rate(http_request_duration_seconds_bucket[5m]))) > 5
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.app }} p95 latency > 5s"
+        - alert: TritonInferenceFailures
+          expr: sum(rate(nv_inference_request_failure[5m])) > 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Triton inference failures detected"
+    - name: reg-agents-gpu-guardrails
+      rules:
+        - alert: GPUTemperatureHigh
+          expr: DCGM_FI_DEV_GPU_TEMP > 85
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "GPU {{ $labels.gpu }} temperature > 85C"
+        - alert: GPUMemoryNearFull
+          expr: |
+            DCGM_FI_DEV_FB_USED / clamp_min(DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE, 1) > 0.95
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "GPU {{ $labels.gpu }} memory > 95% used"
+        - alert: GPUSaturated
+          expr: avg_over_time(DCGM_FI_DEV_GPU_UTIL[15m]) > 95
+          for: 15m
+          labels: { severity: info }
+          annotations:
+            summary: "GPU {{ $labels.gpu }} sustained > 95% util"

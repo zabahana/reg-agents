@@ -12,6 +12,7 @@ Run:  python -m reg_agents.mcp_servers.fraud_server  (PORT default 9103)
 # annotation types when registering tools, and stringized annotations break it.
 
 import json
+import math
 import os
 
 import httpx
@@ -48,6 +49,23 @@ def score_transaction(
     """
     settings = get_settings()
     backend = "heuristic-local"
+
+    # --- Input guardrails: clamp features to sane ranges before inference. Emits
+    # short rule codes so the fraud agent can count guardrail triggers. ---
+    guardrails: list[str] = []
+    if amount < 0:
+        guardrails.append("amount_clamped")
+        amount = 0.0
+    if not (0.0 <= merchant_risk <= 1.0):
+        guardrails.append("merchant_risk_clamped")
+        merchant_risk = max(0.0, min(merchant_risk, 1.0))
+    if not (0 <= hour <= 23):
+        guardrails.append("hour_clamped")
+        hour = max(0, min(int(hour), 23))
+    if velocity_24h < 0:
+        guardrails.append("velocity_clamped")
+        velocity_24h = 0
+
     prob = _heuristic_score(amount, is_foreign, merchant_risk, hour, velocity_24h)
 
     if settings.triton_url:
@@ -69,7 +87,16 @@ def score_transaction(
                 prob = round(float(out["outputs"][0]["data"][0]), 4)
                 backend = "triton-gpu"
         except Exception as exc:  # noqa: BLE001 - fall back but report why
+            guardrails.append("triton_fallback")
             backend = f"heuristic-local (triton error: {exc})"
+
+    # --- Output guardrail: the score must be a finite probability in [0,1].
+    # If the model returns something invalid, fall back to the heuristic. ---
+    if not math.isfinite(prob) or not (0.0 <= prob <= 1.0):
+        guardrails.append("prob_out_of_range")
+        prob = _heuristic_score(amount, is_foreign, merchant_risk, hour, velocity_24h)
+        backend = f"{backend} (guardrail: prob reset)"
+    prob = round(max(0.0, min(prob, 1.0)), 4)
 
     decision = "BLOCK" if prob >= 0.7 else "REVIEW" if prob >= 0.4 else "APPROVE"
     return json.dumps(
@@ -77,6 +104,7 @@ def score_transaction(
             "fraud_probability": prob,
             "decision": decision,
             "backend": backend,
+            "guardrails": guardrails,
             "features": {
                 "amount": amount,
                 "is_foreign": is_foreign,
