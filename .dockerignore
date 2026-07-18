@@ -9,5 +9,9 @@ __pycache__
 .env
 k8s
 docs
+# ...except the complaint-model metrics + figures, which the UI and
+# complaint MCP serve at runtime (Dockerfile COPYs this path).
+!docs/complaint_model
+!docs/complaint_model/**
 *.md
 !README.md
