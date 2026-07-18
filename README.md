@@ -20,7 +20,8 @@ Triton**.
 |---|---|
 | NVIDIA NIM / NeMo / TensorRT / Triton | `nim-llm`, `nemo-retriever`, `triton` (k8s GPU tier); OpenAI-compatible client |
 | GNNs / XGBoost for fraud | Fraud model (mirrors NVIDIA fraud AI Blueprint), served via Triton |
-| Generative & Agentic AI | 9 cooperating agents across two orchestrated flows |
+| Generative & Agentic AI | 10 cooperating agents across three orchestrated flows |
+| NLP / complaint intelligence | Complaint→regulation classifier (real CFPB data): binary gate + RAG/LLM labeling with citations |
 | Model risk management lifecycle | Developer → Validator → Audit agents (three lines of defense) + real model bake-off |
 | Banking/payments + regulation | SR 11-7, ECOA/Reg B, FCRA, UDAAP, BSA/AML corpus + fraud use case |
 | Production deployment / MLOps | Docker, docker-compose, Kubernetes/GKE, GitHub Actions CI/CD |
@@ -28,7 +29,7 @@ Triton**.
 
 Core building blocks: **Kubernetes**, **MCP**, **A2A**, **Docker**, and **CI/CD**.
 
-Two orchestrated flows share the same agent/MCP infrastructure:
+Three orchestrated flows share the same agent/MCP infrastructure:
 
 1. **Governance review** — validate a registered model, analyze fraud
    performance, retrieve regulations, produce an audit-ready report.
@@ -37,6 +38,13 @@ Two orchestrated flows share the same agent/MCP infrastructure:
    challenge*, and Internal Audit reviews the process. This mirrors the banking
    **three lines of defense**. See committed artifacts in
    [`docs/lifecycle/`](docs/lifecycle/README.md).
+3. **Complaint classification** — a two-stage model over **real CFPB complaint
+   narratives**: a binary classifier gates *regulatory vs not*, then RAG over
+   the regulation corpus + LLM reasoning (few-shot) assigns one of **24
+   regulation categories** (UDAAP, sales practices, FCRA, Reg E, …) with a
+   cited excerpt. Development + validation documentation with accuracy figures
+   ships as markdown **and PDF** in
+   [`docs/complaint_model/`](docs/complaint_model/README.md).
 
 ---
 
@@ -78,6 +86,17 @@ agents (three lines of defense):
         │ MCP
         ▼
    modeling-mcp  (scikit-learn bake-off → champion; GPU: RAPIDS cuML / XGBoost)
+```
+
+A third flow classifies consumer complaints (real CFPB narratives) against the
+regulation taxonomy:
+
+```
+   user / UI ──► Complaint Agent (A2A :8110) ──► complaint-mcp (:9105)
+                                                     │
+                       stage 1: TF-IDF binary gate — regulatory?  (logistic/XGBoost)
+                       stage 2: RAG (regulation corpus) + LLM few-shot reasoning
+                                → 1 of 24 categories + citation + rationale
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for design detail and
@@ -128,6 +147,12 @@ switch to NIM) to get fully synthesized, cited output.
   model types — **fraud** (champion: a tree) and **credit PD** (champion:
   logistic regression) — to show the pipeline generalizes. Regenerate with
   `python scripts/generate_lifecycle.py --all`.
+- **Complaint model documentation** — development document + independent
+  validation report with accuracy figures and tables, as markdown **and PDF**:
+  [`docs/complaint_model/`](docs/complaint_model/README.md). Data is real
+  (CFPB Consumer Complaint Database; refresh with
+  `python scripts/fetch_cfpb_complaints.py`). Regenerate docs with
+  `python scripts/generate_complaint_model_docs.py`.
 
 ## Run on real NVIDIA infra
 
@@ -182,19 +207,20 @@ Jaeger); it is a silent no-op otherwise.
 
 ```
 reg_agents/
-  common/        llm, embeddings, vector store, A2A protocol, MCP client, corpus, modeling, telemetry (OTel)
-  mcp_servers/   regulations / model-registry / fraud / modeling  (MCP tool servers, SSE)
+  common/        llm, embeddings, vector store, A2A protocol, MCP client, corpus, modeling, complaints, telemetry (OTel)
+  mcp_servers/   regulations / model-registry / fraud / modeling / complaint  (MCP tool servers, SSE)
   agents/        governance: orchestrator + retriever / validation / fraud / report
                  lifecycle:  lifecycle-orchestrator + developer / validator / audit (A2A)
+                 complaints: complaint agent (two-stage classifier + citations)
   ui/            Streamlit demo
-data/            regulations corpus, model cards, sample transactions + credit data
-docs/            architecture, sample reports + lifecycle artifacts (fraud + credit)
+data/            regulations corpus, model cards, sample transactions + credit data + CFPB complaints (real)
+docs/            architecture, sample reports, lifecycle artifacts (fraud + credit), complaint-model docs (MD + PDF)
 triton/          Triton FIL model repository (config.pbtxt) + export script
 brev/            NVIDIA Brev GPU runbook (Triton on NVIDIA infra, no hyperscaler)
 k8s/             GKE manifests (Triton GPU tier + CPU agents), optional self-hosted NIM
 k8s/monitoring/  kube-prometheus-stack values + ServiceMonitors + Grafana dashboard
 monitoring/      local Prometheus + Grafana + guardrail alert rules (compose)
-scripts/         run_local.sh / stop_local.sh / demo_run.py / lifecycle_run.py / export_triton_model.py / generate_*.py
+scripts/         run_local.sh / stop_local.sh / demo_run.py / lifecycle_run.py / export_triton_model.py / fetch_cfpb_complaints.py / generate_*.py
 tests/           offline unit tests
 .github/         CI/CD pipeline
 ```

@@ -18,6 +18,7 @@ x-common: &common
     MODEL_REGISTRY_MCP_URL: http://model-registry-mcp:9102/sse
     FRAUD_MCP_URL: http://fraud-mcp:9103/sse
     MODELING_MCP_URL: http://modeling-mcp:9104/sse
+    COMPLAINT_MCP_URL: http://complaint-mcp:9105/sse
     RETRIEVER_AGENT_URL: http://retriever-agent:8101
     VALIDATION_AGENT_URL: http://validation-agent:8102
     FRAUD_AGENT_URL: http://fraud-agent:8103
@@ -26,6 +27,7 @@ x-common: &common
     VALIDATOR_AGENT_URL: http://validator-agent:8106
     AUDIT_AGENT_URL: http://audit-agent:8107
     LIFECYCLE_ORCHESTRATOR_URL: http://lifecycle-orchestrator:8108
+    COMPLAINT_AGENT_URL: http://complaint-agent:8110
     # OpenTelemetry: agents export traces to Jaeger (started by the `monitoring`
     # profile). Tracing is a no-op in code if this endpoint is unreachable.
     OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
@@ -63,6 +65,14 @@ services:
       <<: *common-env
       PORT: "9104"
     ports: ["9104:9104"]
+
+  complaint-mcp:
+    <<: *common
+    command: python -m reg_agents.mcp_servers.complaint_server
+    environment:
+      <<: *common-env
+      PORT: "9105"
+    ports: ["9105:9105"]
 
   retriever-agent:
     <<: *common
@@ -117,6 +127,13 @@ services:
     command: python -m uvicorn reg_agents.agents.lifecycle_orchestrator:app --host 0.0.0.0 --port 8108
     ports: ["8108:8108"]
     depends_on: [developer-agent, validator-agent, audit-agent]
+
+  # --- Complaint → regulation classification (third model) ---
+  complaint-agent:
+    <<: *common
+    command: python -m uvicorn reg_agents.agents.complaint_agent:app --host 0.0.0.0 --port 8110
+    ports: ["8110:8110"]
+    depends_on: [complaint-mcp, regulations-mcp]
 
   ui:
     <<: *common

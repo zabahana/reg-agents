@@ -22,6 +22,9 @@ scikit-learn==1.5.2
 pandas==2.2.3
 xgboost==2.1.1
 
+# --- Complaint-model documentation: accuracy figures + structured PDF reports ---
+matplotlib==3.9.2
+
 # --- Observability: Prometheus metrics for the A2A agents (scraped by
 # kube-prometheus-stack; visualized in Grafana). ---
 prometheus-fastapi-instrumentator==7.0.0

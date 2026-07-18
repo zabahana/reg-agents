@@ -24,6 +24,11 @@ Desktop) can use them.
 - **modeling-mcp** — `list_tasks`, `list_candidate_models`, `run_model_bakeoff`,
   `get_champion`. Trains candidate models and selects a champion. scikit-learn
   locally; **RAPIDS cuML / XGBoost** analog on GPU.
+- **complaint-mcp** — `classify_complaint`, `list_regulation_taxonomy`,
+  `sample_complaints`, `get_model_metrics`. Two-stage complaint→regulation
+  classification over real CFPB data (binary gate + RAG/LLM labeling with
+  citations). GPU upgrade path: BERT-class encoder fine-tuned with NeMo, served
+  via Triton; curation at scale via **NeMo Data Curator**.
 
 ### A2A agents (Agent-to-Agent protocol)
 Each agent publishes an **Agent Card** at `/.well-known/agent-card.json` and
@@ -52,6 +57,15 @@ Model-development lifecycle flow (three lines of defense):
   opinion. Does not re-do the math.
 - **lifecycle-orchestrator** — sequences developer → validator → audit, threading
   each artifact to the next agent; also an A2A server.
+
+Complaint-classification flow:
+
+- **complaint-agent** — classifies a complaint narrative via complaint-mcp
+  (stage 1 binary gate → stage 2 RAG + LLM with few-shot examples), returns the
+  regulation label, a **citation** from the retrieved policy excerpts, and an
+  analyst routing summary. Emits `complaint_classifications_total{label,mode}`.
+  Model documentation (dev doc + validation report, MD + **PDF**, with accuracy
+  figures) lives in `docs/complaint_model/`.
 
 ### Inference tier (NVIDIA, on GPU)
 - **NIM (LLM)** — OpenAI-compatible chat completions used by every agent.
@@ -118,6 +132,31 @@ sequenceDiagram
     L-->>U: 3 documents + trace
 ```
 
+## Request flow (complaint classification)
+
+```mermaid
+sequenceDiagram
+    participant U as User / UI
+    participant CA as Complaint Agent (A2A)
+    participant CM as complaint-mcp
+    participant Reg as regulation corpus (RAG)
+    participant NV as NIM (LLM)
+
+    U->>CA: classify(narrative)  [real CFPB complaint]
+    CA->>CM: classify_complaint(narrative)
+    CM->>CM: stage 1 — TF-IDF binary gate (regulatory?)
+    alt regulatory
+        CM->>Reg: retrieve top-k policy/regulation excerpts
+        CM->>NV: NIM chat (taxonomy + few-shots + excerpts + complaint)
+        NV-->>CM: {label, confidence, rationale, citation_source}
+    else non-regulatory
+        CM-->>CM: gate out (no LLM call)
+    end
+    CM-->>CA: two-stage result + cited excerpt
+    CA->>NV: NIM chat (analyst routing summary)
+    CA-->>U: label + citation + summary
+```
+
 ## Local vs GPU parity
 
 | Concern | Local dev | GKE GPU demo |
@@ -127,6 +166,8 @@ sequenceDiagram
 | Vector search | FAISS (CPU) / numpy | Milvus + cuVS (GPU) |
 | Fraud model | heuristic | Triton (GNN+XGBoost) |
 | Model bake-off | scikit-learn (CPU) | RAPIDS cuML / XGBoost (GPU) |
+| Complaint stage 1 | TF-IDF + logistic/XGBoost (CPU) | NeMo-fine-tuned BERT on Triton |
+| Complaint curation | pandas filters/dedup | NeMo Data Curator (RAPIDS) |
 | Orchestration | same code | same code |
 
 The agents/MCP servers are **identical** across environments; only config

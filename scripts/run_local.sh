@@ -42,6 +42,7 @@ start regulations_mcp   reg_agents.mcp_servers.regulations_server     9101
 start model_registry_mcp reg_agents.mcp_servers.model_registry_server 9102
 start fraud_mcp         reg_agents.mcp_servers.fraud_server           9103
 start modeling_mcp      reg_agents.mcp_servers.modeling_server        9104
+start complaint_mcp     reg_agents.mcp_servers.complaint_server       9105
 
 sleep 2
 
@@ -58,11 +59,14 @@ start_app validator_agent  reg_agents.agents.validator_agent:app  8106
 start_app audit_agent      reg_agents.agents.audit_agent:app      8107
 start_app lifecycle        reg_agents.agents.lifecycle_orchestrator:app 8108
 
+# A2A agent — complaint → regulation classification (third model)
+start_app complaint_agent  reg_agents.agents.complaint_agent:app  8110
+
 # Wait until the A2A agents actually accept connections (they import heavy libs
 # like scikit-learn/faiss and take a few seconds), so callers can run demos
 # immediately after this script returns instead of hitting "Connection refused".
 wait_ready () {
-  local ports="8100 8101 8102 8103 8104 8105 8106 8107 8108"
+  local ports="8100 8101 8102 8103 8104 8105 8106 8107 8108 8110"
   echo -n "waiting for agents to be ready"
   for _ in $(seq 1 60); do
     local all_ok=1

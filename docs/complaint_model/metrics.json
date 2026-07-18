@@ -1,0 +1,163 @@
+{
+  "generated": "2026-07-18 17:36 UTC",
+  "llm": {
+    "provider": "nim",
+    "model": "meta/llama-3.1-8b-instruct"
+  },
+  "dataset": {
+    "n_rows": 4000,
+    "n_train": 3000,
+    "n_test": 1000,
+    "regulatory_rate": 0.9663,
+    "source": "CFPB Consumer Complaint Database (public, narratives redacted)"
+  },
+  "stage1": {
+    "champion": "logistic_regression",
+    "leaderboard": [
+      {
+        "model": "logistic_regression",
+        "pr_auc": 0.9933,
+        "roc_auc": 0.8713,
+        "f1": 0.9805,
+        "precision": 0.9725,
+        "recall": 0.9886,
+        "accuracy": 0.962
+      }
+    ],
+    "confusion_matrix": [
+      [
+        7,
+        27
+      ],
+      [
+        11,
+        955
+      ]
+    ]
+  },
+  "stage2": {
+    "n": 115,
+    "mode": "rag_llm",
+    "accuracy": 0.3217,
+    "family_accuracy": 0.4609,
+    "macro_f1": 0.3098,
+    "weighted_f1": 0.3233,
+    "per_label": [
+      {
+        "label": "BSA_AML",
+        "support": 5,
+        "recall": 0.2
+      },
+      {
+        "label": "ECOA_ADVERSE_ACTION",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "ECOA_DISCRIMINATION",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "FCRA_ACCURACY",
+        "support": 5,
+        "recall": 0.2
+      },
+      {
+        "label": "FCRA_INVESTIGATION",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "FCRA_PERMISSIBLE_PURPOSE",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "FDCPA_COMMUNICATION",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "FDCPA_DEBT_VALIDATION",
+        "support": 5,
+        "recall": 0.2
+      },
+      {
+        "label": "FDCPA_THREATS",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "GLBA_PRIVACY",
+        "support": 5,
+        "recall": 0.2
+      },
+      {
+        "label": "LOAN_SERVICING",
+        "support": 5,
+        "recall": 0.0
+      },
+      {
+        "label": "REG_CC_FUNDS",
+        "support": 5,
+        "recall": 0.0
+      },
+      {
+        "label": "REG_E_ERROR_RESOLUTION",
+        "support": 5,
+        "recall": 0.2
+      },
+      {
+        "label": "REG_E_UNAUTHORIZED",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "REG_Z_BILLING",
+        "support": 5,
+        "recall": 0.0
+      },
+      {
+        "label": "REG_Z_DISCLOSURE",
+        "support": 5,
+        "recall": 0.6
+      },
+      {
+        "label": "RESPA_LOSS_MITIGATION",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "RESPA_SERVICING",
+        "support": 5,
+        "recall": 0.6
+      },
+      {
+        "label": "SALES_PRACTICES",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "SCRA_MLA",
+        "support": 5,
+        "recall": 0.8
+      },
+      {
+        "label": "TILA_ORIGINATION",
+        "support": 5,
+        "recall": 0.0
+      },
+      {
+        "label": "TISA_REG_DD",
+        "support": 5,
+        "recall": 0.4
+      },
+      {
+        "label": "UDAAP",
+        "support": 5,
+        "recall": 0.4
+      }
+    ]
+  }
+}

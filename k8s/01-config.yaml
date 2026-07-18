@@ -29,6 +29,7 @@ data:
   MODEL_REGISTRY_MCP_URL: "http://model-registry-mcp:9102/sse"
   FRAUD_MCP_URL: "http://fraud-mcp:9103/sse"
   MODELING_MCP_URL: "http://modeling-mcp:9104/sse"
+  COMPLAINT_MCP_URL: "http://complaint-mcp:9105/sse"
 
   RETRIEVER_AGENT_URL: "http://retriever-agent:8101"
   VALIDATION_AGENT_URL: "http://validation-agent:8102"
@@ -38,6 +39,7 @@ data:
   VALIDATOR_AGENT_URL: "http://validator-agent:8106"
   AUDIT_AGENT_URL: "http://audit-agent:8107"
   LIFECYCLE_ORCHESTRATOR_URL: "http://lifecycle-orchestrator:8108"
+  COMPLAINT_AGENT_URL: "http://complaint-agent:8110"
 ---
 # Create the real secret with your hosted-NIM key (get one at build.nvidia.com):
 #   kubectl -n reg-agents create secret generic reg-agents-secrets \

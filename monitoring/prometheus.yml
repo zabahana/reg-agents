@@ -40,6 +40,8 @@ scrape_configs:
         labels: { app: audit-agent }
       - targets: ["lifecycle-orchestrator:8108"]
         labels: { app: lifecycle-orchestrator }
+      - targets: ["complaint-agent:8110"]
+        labels: { app: complaint-agent }
 
   # Triton + GPU (only present with docker-compose.gpu.yml). Harmless if absent —
   # the targets simply show as down and the panels stay empty.

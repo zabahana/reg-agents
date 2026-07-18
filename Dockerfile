@@ -17,6 +17,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY reg_agents ./reg_agents
 COPY data ./data
 COPY scripts ./scripts
+COPY docs/complaint_model ./docs/complaint_model
 COPY pyproject.toml .
 
 # Default: orchestrator. Override `command` per service in compose/k8s.
