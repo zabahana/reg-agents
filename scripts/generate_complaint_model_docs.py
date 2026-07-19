@@ -107,6 +107,50 @@ def fig_stage1_confusion(s1) -> str:
     return path
 
 
+def fig_score_distribution(s1) -> str:
+    """Champion stage-1 score distribution by true class (separation view)."""
+    c = s1["curves"][s1["champion"]]
+    pos = c["y_score"][c["y_true"] == 1]
+    neg = c["y_score"][c["y_true"] == 0]
+    fig, ax = plt.subplots(figsize=(8, 4))
+    bins = np.linspace(0, 1, 41)
+    ax.hist(pos, bins=bins, alpha=0.65, density=True, color=GREEN,
+            label=f"regulatory (n={len(pos)})")
+    ax.hist(neg, bins=bins, alpha=0.65, density=True, color=GRAY,
+            label=f"non-regulatory (n={len(neg)})")
+    ax.axvline(0.5, color="#c62828", ls="--", lw=1, label="decision threshold 0.5")
+    ax.set(title=f"Stage 1 — score distribution by class ({s1['champion']})",
+           xlabel="predicted P(regulatory)", ylabel="density")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    path = os.path.join(FIG_DIR, "stage1_score_distribution.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
+def fig_calibration(s1) -> str:
+    """Reliability diagram for the champion (calibration, not just ranking)."""
+    from sklearn.calibration import calibration_curve
+
+    c = s1["curves"][s1["champion"]]
+    frac_pos, mean_pred = calibration_curve(c["y_true"], c["y_score"],
+                                            n_bins=10, strategy="quantile")
+    fig, ax = plt.subplots(figsize=(5.2, 4.6))
+    ax.plot([0, 1], [0, 1], "k--", lw=0.8, label="perfect calibration")
+    ax.plot(mean_pred, frac_pos, "o-", color=GREEN, label=s1["champion"])
+    ax.set(title="Stage 1 — reliability diagram (quantile bins)",
+           xlabel="mean predicted probability", ylabel="observed frequency")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    path = os.path.join(FIG_DIR, "stage1_calibration.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
 def fig_stage2_recall(s2) -> str:
     rows = sorted(s2["per_label"], key=lambda r: r["recall"])
     labels = [r["label"] for r in rows]
@@ -246,31 +290,77 @@ def _title_page(pdf: PdfPages, title: str, subtitle: str, meta: str) -> None:
 # --------------------------------------------------------------------------- #
 # Narrative sections (LLM with deterministic fallback)
 # --------------------------------------------------------------------------- #
-def _narrative(system: str, user: str, fallback: str) -> str:
+def _narrative(system: str, user: str, fallback: str, max_tokens: int = 1500) -> str:
+    """LLM narrative with visible retries (stage-2 eval can rate-limit us)."""
+    import time
+
     try:
         from reg_agents.common import llm
-
-        return llm.system_user(system, user, max_tokens=900, temperature=0.2)
     except Exception:  # noqa: BLE001
         return fallback
+    for attempt in range(4):
+        try:
+            return llm.system_user(system, user, max_tokens=max_tokens, temperature=0.2)
+        except Exception as exc:  # noqa: BLE001
+            wait = 15 * (attempt + 1)
+            print(f"   narrative attempt {attempt + 1} failed ({exc}); retry in {wait}s")
+            time.sleep(wait)
+    return fallback
 
 
+# Both documents are written in the voice of a career quantitative reviewer:
+# PhD econometrics, two decades of tier-1 bank model work, examiner-facing.
 DEV_SYS = (
-    "You are a first-line model developer at a bank writing the executive summary "
-    "and methodology narrative of a Model Development Document for a two-stage "
-    "complaint-to-regulation classification model. Be precise, cite the supplied "
-    "metrics verbatim, note key design choices, and keep it under 450 words. "
-    "Plain prose, no markdown headers."
+    "You are a senior model developer and quantitative lead — PhD in "
+    "econometrics, 20 years building and defending bank models (scorecards, "
+    "CCAR/PPNR, fraud, NLP) — writing the executive summary and methodology "
+    "narrative of a Model Development Document for a two-stage "
+    "complaint-to-regulation classification model. Write the way a seasoned "
+    "quant writes for an examiner: measured, exact, in complete paragraphs. "
+    "Structure the narrative as flowing prose covering, in order: purpose and "
+    "materiality; design rationale for the two-stage architecture (why a cheap "
+    "high-recall gate before an expensive grounded labeler, framed as an "
+    "economic and statistical decision); estimation and model-selection "
+    "protocol, quoting the supplied metrics verbatim and interpreting "
+    "discrimination (PR-AUC vs ROC-AUC under class imbalance) correctly; known "
+    "weaknesses stated candidly, especially the weak-label reference; and the "
+    "monitoring/guardrail design as part of the model, not an afterthought. "
+    "600-800 words. Plain prose, no markdown headers, no bullet lists."
 )
 
 VAL_SYS = (
-    "You are an independent second-line model validator (SR 11-7). Write the "
-    "assessment narrative for a validation report on a two-stage complaint "
-    "classification model: evaluate conceptual soundness, data quality (weak "
-    "labels!), and outcomes analysis from the supplied metrics; provide "
-    "severity-ranked findings with remediations; end with the disposition "
-    "'Approve with Conditions' and the conditions. Under 500 words. Plain prose, "
-    "no markdown headers."
+    "You are a senior independent model validator — PhD in econometrics, 20 "
+    "years in second-line model risk at large banks, having validated credit "
+    "scorecards, CCAR models, fraud systems, and now GenAI/agentic systems; "
+    "you have defended findings to the Fed and OCC. Write the effective-"
+    "challenge assessment narrative for an Independent Validation Report on a "
+    "two-stage complaint classification model. Voice: measured, evidence-"
+    "first, unsparing where warranted — the way a career validator writes. "
+    "Cover, in flowing prose: (1) conceptual soundness — fitness of the "
+    "two-stage design, maintained assumptions, and where it could fail; (2) "
+    "data quality and label provenance — interrogate the weak-supervision "
+    "reference and what that does to every downstream metric, including the "
+    "distinction between measured agreement and true accuracy; (3) outcomes "
+    "analysis — quote the supplied metrics verbatim, discuss discrimination "
+    "vs calibration, small-support instability, and why family-level "
+    "agreement diverges from exact agreement; (4) monitoring and guardrails "
+    "adequacy; (5) consumer-protection/fair-lending exposure of complaint "
+    "routing. Number findings V-1, V-2, ... with severity (High/Medium/Low), "
+    "each with a concrete remediation and owner. End with the disposition "
+    "'Approve with Conditions' and enumerate the conditions precisely. "
+    "700-900 words. Plain prose paragraphs plus the numbered findings; no "
+    "markdown headers."
+)
+
+SIGNOFF = (
+    "Prepared and reviewed under the bank's model risk management framework "
+    "(SR 11-7 / OCC 2011-12).\n\n"
+    "**Author, development document:** Senior Model Developer & Quantitative "
+    "Lead — PhD (Econometrics), 20 years in model development across credit, "
+    "capital planning, fraud, and NLP.\n\n"
+    "**Author, validation report:** Senior Independent Model Validator — PhD "
+    "(Econometrics), 20 years in second-line validation; independent of the "
+    "development team per SR 11-7 organizational-independence requirements."
 )
 
 
@@ -304,6 +394,8 @@ def main() -> None:
         "labels": fig_label_distribution(df),
         "curves": fig_stage1_curves(s1),
         "confusion": fig_stage1_confusion(s1),
+        "scores": fig_score_distribution(s1),
+        "calibration": fig_calibration(s1),
         "recall": fig_stage2_recall(s2),
     }
 
@@ -357,12 +449,23 @@ def main() -> None:
         "OpenTelemetry stack."
     )
 
+    glossary = (
+        "GLOSSARY (use the expansions, never the raw tokens): 'rag_llm' = the "
+        "stage-2 retrieval-augmented generation pipeline (NeMo Retriever "
+        "embeddings + LLM labeler served via NVIDIA NIM); 'xgboost' and "
+        "'logistic_regression' = stage-1 TF-IDF classifiers in the bake-off; "
+        "'family_accuracy' = agreement at the regulation-family level (all "
+        "FCRA_* variants collapsed to one family, etc.); 'pr_auc' = area under "
+        "the precision-recall curve, the primary stage-1 metric given the ~94% "
+        "positive-class prevalence."
+    )
     dev_narrative = _narrative(
-        DEV_SYS, f"METRICS (JSON):\n{metrics_str}",
+        DEV_SYS, f"{glossary}\n\nMETRICS (JSON):\n{metrics_str}",
         fallback="LLM narrative unavailable offline; see metrics tables and figures.",
     )
     val_narrative = _narrative(
-        VAL_SYS, f"MODEL METRICS (JSON):\n{metrics_str}\n\nDATA NOTES:\n{data_text}",
+        VAL_SYS,
+        f"{glossary}\n\nMODEL METRICS (JSON):\n{metrics_str}\n\nDATA NOTES:\n{data_text}",
         fallback="LLM narrative unavailable offline; see metrics tables and figures.",
     )
 
@@ -371,11 +474,51 @@ def main() -> None:
     s2_rows = [[r["label"], r["support"], r["recall"]]
                for r in sorted(s2["per_label"], key=lambda x: -x["support"])]
 
+    # Dataset summary table
+    ds = s1["dataset"]
+    ds_headers = ["property", "value"]
+    ds_rows = [
+        ["source", "CFPB Consumer Complaint Database (public, PII-redacted)"],
+        ["curated rows", f"{ds['n_rows']:,}"],
+        ["train / test split", f"{ds['n_train']:,} / {ds['n_test']:,} (stratified)"],
+        ["regulatory rate", f"{ds['regulatory_rate']:.1%}"],
+        ["taxonomy coverage", f"{df['label'].nunique()} of 24 categories"],
+        ["curation stages", "length filter · exact dedup · near dedup · PII check · balanced sampling"],
+        ["label provenance", "weak supervision (CFPB issue taxonomy + keyword rules)"],
+    ]
+
+    # Taxonomy table: all 24 categories with dataset support
+    support = df["label"].value_counts().to_dict()
+    tax_headers = ["code", "regulation / category", "n in dataset"]
+    tax_rows = [[r.label, r.name, support.get(r.label, 0)]
+                for r in C.REGULATIONS.values()]
+
+    # Guardrail inventory table
+    gr_headers = ["guardrail", "mechanism", "surfaced as"]
+    gr_rows = [
+        ["Taxonomy whitelist", "LLM label must be one of the 24 codes; else rejected",
+         "complaint_classifications_total{label}"],
+        ["Strict-JSON parsing", "malformed LLM output -> deterministic keyword fallback",
+         "mode=fallback counter (alertable spike)"],
+        ["Stage-1 gating", "non-regulatory volume never reaches the LLM",
+         "cost + attack-surface control"],
+        ["Retrieval grounding", "answer must cite a retrieved corpus excerpt",
+         "citation attached to every prediction"],
+        ["Provider portability", "OpenAI <-> NIM via config; keyword mode if both fail",
+         "mode label per classification"],
+    ]
+
     banner = (
         f"> Generated by `reg-agents` on {ts} · LLM: **{s.llm_provider}** "
         f"(`{s.active_model}`) · Data: **CFPB Consumer Complaint Database** (real, "
         f"redacted narratives) · Stage-2 eval n={s2['n']} (mode: {s2['mode']}).\n"
     )
+
+    def md_table(headers, rows):
+        head = "| " + " | ".join(headers) + " |"
+        sep = "|" + "|".join(["---"] * len(headers)) + "|"
+        body = "\n".join("| " + " | ".join(str(v) for v in r) + " |" for r in rows)
+        return f"{head}\n{sep}\n{body}"
 
     # ---------------- markdown: development document ----------------
     dev_md = f"""# Model Development Document — Complaint→Regulation Classifier (CMPL-REG-24)
@@ -397,19 +540,34 @@ def main() -> None:
 
 {data_text}
 
+{md_table(ds_headers, ds_rows)}
+
 ![labels](figures/label_distribution.png)
+
+### 3.1 · The 24-category regulation taxonomy (with dataset support)
+
+{md_table(tax_headers, tax_rows)}
 
 ## 4 · Stage 1 — binary bake-off (regulatory vs not)
 
-| {' | '.join(lb_headers)} |
-|{'|'.join(['---'] * len(lb_headers))}|
-{chr(10).join('| ' + ' | '.join(str(v) for v in row) + ' |' for row in lb_rows)}
+{md_table(lb_headers, lb_rows)}
 
 Champion: **{s1['champion']}** (primary metric: PR-AUC).
 
 ![curves](figures/stage1_curves.png)
 
 ![confusion](figures/stage1_confusion.png)
+
+### 4.1 · Score separation & calibration
+
+The score distribution shows the class separation the gate achieves at the 0.5
+operating threshold; the reliability diagram assesses whether predicted
+probabilities can be read as probabilities (relevant if the threshold is ever
+tuned to a cost matrix rather than 0.5).
+
+![scores](figures/stage1_score_distribution.png)
+
+![calibration](figures/stage1_calibration.png)
 
 ## 5 · Stage 2 — RAG + LLM regulation labeling
 
@@ -426,13 +584,18 @@ report are the operative quality gates.
 
 ![recall](figures/stage2_recall.png)
 
-## 6 · Monitoring & deployment
+## 6 · Monitoring, guardrails & deployment
 
 Served via the complaint MCP server + Complaint A2A agent. Per-classification
 Prometheus counters (by label and mode), latency histograms via the agent
 `/metrics` endpoint, OpenTelemetry traces across A2A hops, and drift monitoring
-on the stage-1 score distribution. Guardrails: strict-JSON output parsing,
-taxonomy whitelist on labels, keyword fallback on LLM failure, stage-1 gating.
+on the stage-1 score distribution (PSI trigger at 0.25).
+
+{md_table(gr_headers, gr_rows)}
+
+---
+
+{SIGNOFF}
 """
 
     val_md = f"""# Independent Validation Report — Complaint→Regulation Classifier (CMPL-REG-24)
@@ -454,15 +617,27 @@ evaluation (n={s2['n']}) with per-category metrics.
 
 Stage-1 leaderboard (validated re-run):
 
-| {' | '.join(lb_headers)} |
-|{'|'.join(['---'] * len(lb_headers))}|
-{chr(10).join('| ' + ' | '.join(str(v) for v in row) + ' |' for row in lb_rows)}
+{md_table(lb_headers, lb_rows)}
 
 ![curves](figures/stage1_curves.png)
+
+Score separation and calibration of the champion gate (validator re-derived):
+
+![scores](figures/stage1_score_distribution.png)
+
+![calibration](figures/stage1_calibration.png)
 
 Stage-2 per-category recall vs weak labels (support-weighted):
 
 ![recall](figures/stage2_recall.png)
+
+Per-category detail (support and recall against the weak reference):
+
+{md_table(["category", "support", "recall"], s2_rows)}
+
+### 3.1 · Guardrail inventory (validated against design)
+
+{md_table(gr_headers, gr_rows)}
 
 ## 4 · Key limitations (validator-confirmed)
 
@@ -482,6 +657,10 @@ Stage-2 per-category recall vs weak labels (support-weighted):
 **Approve with Conditions** — see conditions in the assessment narrative and
 limitations above; re-validation triggered by model/prompt change or stage-1
 PSI > 0.25.
+
+---
+
+{SIGNOFF}
 """
 
     with open(os.path.join(OUT_DIR, "01_model_development_document.md"), "w",
@@ -507,18 +686,27 @@ PSI > 0.25.
                      "Two-stage pipeline: binary gate, then RAG+LLM labeling with citations.")
         _text_page(pdf, "2 · Architecture (detail)", arch_text)
         _text_page(pdf, "3 · Data & curation", data_text)
+        _table_page(pdf, "3 · Dataset summary", ds_headers, ds_rows)
         _figure_page(pdf, "3 · Label distribution", figs["labels"],
                      "Weak-label distribution over the 24 regulation categories.")
+        _table_page(pdf, "3.1 · Regulation taxonomy (with dataset support)",
+                    tax_headers, tax_rows)
         _table_page(pdf, "4 · Stage-1 bake-off leaderboard", lb_headers, lb_rows,
                     f"Champion: {s1['champion']} (primary metric: PR-AUC).")
         _figure_page(pdf, "4 · Stage-1 ROC / PR curves", figs["curves"])
         _figure_page(pdf, "4 · Stage-1 confusion matrix", figs["confusion"])
+        _figure_page(pdf, "4.1 · Score separation", figs["scores"],
+                     "Class separation at the 0.5 operating threshold.")
+        _figure_page(pdf, "4.1 · Calibration (reliability diagram)", figs["calibration"],
+                     "Whether predicted probabilities can be read as probabilities.")
         _figure_page(pdf, "5 · Stage-2 per-category recall", figs["recall"],
                      f"Exact acc {s2['accuracy']} · family acc {s2['family_accuracy']}"
                      f" · macro-F1 {s2['macro_f1']} · n={s2['n']}.")
         _table_page(pdf, "5 · Stage-2 per-category detail",
                     ["category", "support", "recall"], s2_rows,
                     "Recall vs weak labels on the stratified evaluation sample.")
+        _table_page(pdf, "6 · Guardrail inventory", gr_headers, gr_rows)
+        _text_page(pdf, "Sign-off", SIGNOFF.replace("**", ""))
 
     val_pdf = os.path.join(OUT_DIR, "02_validation_report.pdf")
     with PdfPages(val_pdf) as pdf:
@@ -528,10 +716,14 @@ PSI > 0.25.
         _text_page(pdf, "1 · Assessment narrative", val_narrative)
         _table_page(pdf, "2 · Stage-1 leaderboard (validated re-run)",
                     lb_headers, lb_rows)
-        _figure_page(pdf, "2 · Stage-1 evidence", figs["curves"])
+        _figure_page(pdf, "2 · Stage-1 evidence: discrimination", figs["curves"])
+        _figure_page(pdf, "2 · Stage-1 evidence: score separation", figs["scores"])
+        _figure_page(pdf, "2 · Stage-1 evidence: calibration", figs["calibration"],
+                     "Validator re-derived reliability diagram (quantile bins).")
         _figure_page(pdf, "3 · Stage-2 evidence", figs["recall"])
         _table_page(pdf, "3 · Stage-2 per-category detail",
                     ["category", "support", "recall"], s2_rows)
+        _table_page(pdf, "3.1 · Guardrail inventory (validated)", gr_headers, gr_rows)
         _text_page(pdf, "4 · Limitations & disposition",
                    "1. Weak labels: ground truth derives from the CFPB issue taxonomy "
                    "plus keyword rules, not human adjudication. Condition: build a "
@@ -544,6 +736,7 @@ PSI > 0.25.
                    "products and customer segments.\n\n"
                    "DISPOSITION: Approve with Conditions. Re-validation triggered by "
                    "model/prompt change or stage-1 PSI > 0.25.")
+        _text_page(pdf, "Sign-off", SIGNOFF.replace("**", ""))
 
     print(f"wrote {OUT_DIR}/(01_model_development_document|02_validation_report).(md|pdf)")
     print(f"wrote {OUT_DIR}/metrics.json + {len(figs)} figures")

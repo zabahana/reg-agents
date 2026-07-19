@@ -64,6 +64,16 @@ _INVENTORY = {
         "protected_class_features": "n/a (entity/transaction features)",
         "doc_file": "model_card_aml_monitoring.md",
     },
+    "CMPL-REG-24": {
+        "model_id": "CMPL-REG-24",
+        "name": "Complaint → Regulation Classifier (two-stage, CFPB data)",
+        "type": "TF-IDF gate (logistic/XGBoost) + RAG/LLM labeler (NIM)",
+        "owner": "Regulatory Intelligence",
+        "tier": "2 (medium risk)",
+        "use": "Classify consumer complaints into a 24-category regulation taxonomy with citations",
+        "protected_class_features": "none (free-text narrative only)",
+        "doc_file": "model_card_complaint_reg24.md",
+    },
     "GENAI-COMPLAINT-030": {
         "model_id": "GENAI-COMPLAINT-030",
         "name": "GenAI Complaint Classification & Regulatory Mapping",

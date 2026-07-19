@@ -104,8 +104,18 @@ def run_validation_review(model_id: str) -> Dict[str, str]:
         lambda: retriever.send_text(_REG_QUERY),
         "retriever agent",
     )
+    # Give the report agent the registry metadata so the Model Overview
+    # describes the actual model instead of inferring one from context.
+    from reg_agents.common.mcp_client import call_tool
+
+    model_meta = _safe(
+        lambda: call_tool(s.model_registry_mcp_url, "get_model_metadata",
+                          {"model_id": model_id}),
+        "model registry",
+    )
     combined = (
         f"MODEL ID: {model_id}\n\n"
+        f"## Model Metadata (registry of record)\n{model_meta}\n\n"
         f"## Validation Findings\n{steps['validation_findings']}\n\n"
         f"## Regulatory Context\n{steps['regulatory_context']}\n"
     )

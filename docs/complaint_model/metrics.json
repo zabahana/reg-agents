@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-18 17:36 UTC",
+  "generated": "2026-07-19 02:45 UTC",
   "llm": {
     "provider": "nim",
     "model": "meta/llama-3.1-8b-instruct"
@@ -12,8 +12,17 @@
     "source": "CFPB Consumer Complaint Database (public, narratives redacted)"
   },
   "stage1": {
-    "champion": "logistic_regression",
+    "champion": "xgboost",
     "leaderboard": [
+      {
+        "model": "xgboost",
+        "pr_auc": 0.9939,
+        "roc_auc": 0.852,
+        "f1": 0.9742,
+        "precision": 0.9712,
+        "recall": 0.9772,
+        "accuracy": 0.95
+      },
       {
         "model": "logistic_regression",
         "pr_auc": 0.9933,
@@ -26,27 +35,27 @@
     ],
     "confusion_matrix": [
       [
-        7,
-        27
+        6,
+        28
       ],
       [
-        11,
-        955
+        22,
+        944
       ]
     ]
   },
   "stage2": {
     "n": 115,
     "mode": "rag_llm",
-    "accuracy": 0.3217,
-    "family_accuracy": 0.4609,
-    "macro_f1": 0.3098,
-    "weighted_f1": 0.3233,
+    "accuracy": 0.2609,
+    "family_accuracy": 0.4348,
+    "macro_f1": 0.24,
+    "weighted_f1": 0.2504,
     "per_label": [
       {
         "label": "BSA_AML",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.0
       },
       {
         "label": "ECOA_ADVERSE_ACTION",
@@ -61,12 +70,12 @@
       {
         "label": "FCRA_ACCURACY",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.4
       },
       {
         "label": "FCRA_INVESTIGATION",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.2
       },
       {
         "label": "FCRA_PERMISSIBLE_PURPOSE",
@@ -76,7 +85,7 @@
       {
         "label": "FDCPA_COMMUNICATION",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.6
       },
       {
         "label": "FDCPA_DEBT_VALIDATION",
@@ -86,12 +95,12 @@
       {
         "label": "FDCPA_THREATS",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.2
       },
       {
         "label": "GLBA_PRIVACY",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.0
       },
       {
         "label": "LOAN_SERVICING",
@@ -106,12 +115,12 @@
       {
         "label": "REG_E_ERROR_RESOLUTION",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.0
       },
       {
         "label": "REG_E_UNAUTHORIZED",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.2
       },
       {
         "label": "REG_Z_BILLING",
@@ -131,7 +140,7 @@
       {
         "label": "RESPA_SERVICING",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.4
       },
       {
         "label": "SALES_PRACTICES",
@@ -141,7 +150,7 @@
       {
         "label": "SCRA_MLA",
         "support": 5,
-        "recall": 0.8
+        "recall": 0.4
       },
       {
         "label": "TILA_ORIGINATION",

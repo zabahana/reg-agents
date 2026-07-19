@@ -67,7 +67,18 @@ with st.sidebar:
     with st.form("validation_form"):
         st.subheader("① Model validation")
         st.caption("Second-line validation report for a model (SR 11-7).")
-        model_id = st.selectbox("Model", ["FRAUD-XGB-GNN-001", "CREDIT-LGD-014"])
+        model_id = st.selectbox(
+            "Model",
+            [
+                "CMPL-REG-24",          # complaint → regulation classifier (real CFPB data)
+                "FRAUD-XGB-GNN-001",
+                "CREDIT-LGD-014",
+                "CREDIT-PD-007",
+                "AML-TM-021",
+                "GENAI-COMPLAINT-030",
+                "PPNR-CARD-009",
+            ],
+        )
         validation_go = st.form_submit_button("Run validation review", type="primary")
 
     st.divider()
