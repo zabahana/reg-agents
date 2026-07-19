@@ -83,20 +83,8 @@ with st.sidebar:
 
     st.divider()
 
-    with st.form("fraud_form"):
-        st.subheader("② Fraud monitoring")
-        st.caption("Real-time scoring of a single transaction.")
-        amount = st.number_input("Amount", value=4200.0, step=100.0)
-        is_foreign = st.checkbox("Cross-border", value=True)
-        merchant_risk = st.slider("Merchant risk", 0.0, 1.0, 0.6, 0.05)
-        hour = st.slider("Hour of day", 0, 23, 2)
-        velocity = st.slider("24h velocity", 0, 30, 9)
-        fraud_go = st.form_submit_button("Run fraud check", type="primary")
-
-    st.divider()
-
     with st.form("complaint_form"):
-        st.subheader("③ Complaint classification")
+        st.subheader("② Complaint classification")
         st.caption("Two-stage model: regulatory gate → RAG+LLM label "
                    "(1 of 24 regulations) with citation. Real CFPB data.")
         samples = _load_complaint_samples()
@@ -112,6 +100,18 @@ with st.sidebar:
         complaint_go = st.form_submit_button("Classify complaint", type="primary")
         if custom.strip():
             complaint_text = custom.strip()
+
+    st.divider()
+
+    with st.form("fraud_form"):
+        st.subheader("③ Fraud monitoring")
+        st.caption("Real-time scoring of a single transaction.")
+        amount = st.number_input("Amount", value=4200.0, step=100.0)
+        is_foreign = st.checkbox("Cross-border", value=True)
+        merchant_risk = st.slider("Merchant risk", 0.0, 1.0, 0.6, 0.05)
+        hour = st.slider("Hour of day", 0, 23, 2)
+        velocity = st.slider("24h velocity", 0, 30, 9)
+        fraud_go = st.form_submit_button("Run fraud check", type="primary")
 
 
 def _render_validation(model_id: str) -> None:
@@ -243,7 +243,7 @@ else:
     st.info(
         "Pick an operation in the sidebar:\n\n"
         "- **① Model validation** — generate a second-line validation report for a model.\n"
-        "- **② Fraud monitoring** — score a single transaction in real time.\n"
-        "- **③ Complaint classification** — assign a real CFPB complaint to one of "
-        "24 regulation categories with a RAG citation."
+        "- **② Complaint classification** — assign a real CFPB complaint to one of "
+        "24 regulation categories with a RAG citation.\n"
+        "- **③ Fraud monitoring** — score a single transaction in real time."
     )
