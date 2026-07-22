@@ -113,6 +113,24 @@ with st.sidebar:
         velocity = st.slider("24h velocity", 0, 30, 9)
         fraud_go = st.form_submit_button("Run fraud check", type="primary")
 
+    st.divider()
+
+    with st.form("batch_form"):
+        st.subheader("④ Batch scoring (ingestion)")
+        st.caption("Upload a CSV of complaints — or trigger the reserved 5% "
+                   "scoring holdout — through the two-stage pipeline. Output: "
+                   "complaint id, complaint, score, LLM reasoning (CSV).")
+        uploaded = st.file_uploader(
+            "CSV with a `narrative` / `complaint` / `text` column "
+            "(optional `complaint_id`)",
+            type="csv",
+        )
+        use_holdout = st.checkbox(
+            "No file — score the reserved 5% holdout instead", value=True)
+        batch_limit = st.slider("Max rows to score", 5, 200, 25, 5)
+        batch_llm = st.checkbox("Use LLM for stage-2 reasoning", value=True)
+        batch_go = st.form_submit_button("Score batch", type="primary")
+
 
 def _render_validation(model_id: str) -> None:
     with st.spinner("Agents working (validation → retrieval → report)…"):
@@ -227,6 +245,78 @@ def _render_complaint(narrative: str) -> None:
                    "document + independent validation report (MD + PDF).")
 
 
+def _render_batch(uploaded_file, use_holdout: bool, limit: int,
+                  use_llm: bool) -> None:
+    import pandas as pd
+
+    from reg_agents.common import complaints as C
+
+    st.subheader("Batch scoring — data ingestion")
+    if uploaded_file is not None:
+        try:
+            batch = pd.read_csv(uploaded_file)
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Could not read the uploaded CSV: {exc}")
+            return
+        source = f"uploaded file `{uploaded_file.name}`"
+    elif use_holdout:
+        batch = C.scoring_holdout()
+        source = ("reserved 5% scoring holdout — carved out **before** the "
+                  "80/10/10 modeling split, never seen in training, "
+                  "validation, test, or threshold tuning")
+    else:
+        st.warning("Upload a CSV or tick the holdout option.")
+        return
+
+    try:
+        C._resolve_text_column(batch)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+
+    total_available = len(batch)
+    batch = batch.head(limit)
+    st.caption(f"Source: {source} · scoring {len(batch)} of "
+               f"{total_available} rows · LLM: {'on' if use_llm else 'off'}")
+
+    bar = st.progress(0.0, text="Scoring…")
+
+    def progress(done: int, total: int) -> None:
+        bar.progress(done / total, text=f"Scoring… {done}/{total}")
+
+    scored = C.score_batch(batch, use_llm=use_llm, progress=progress)
+    bar.empty()
+
+    n_reg = int(scored["is_regulatory"].sum())
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Complaints scored", len(scored))
+    c2.metric("Flagged regulatory", f"{n_reg} ({n_reg / max(len(scored), 1):.0%})")
+    c3.metric("Stage-2 mode", scored["mode"].mode().iloc[0] if len(scored) else "—")
+
+    st.dataframe(
+        scored[["complaint_id", "complaint", "score", "is_regulatory",
+                "label", "confidence", "llm_reasoning"]],
+        use_container_width=True,
+        column_config={
+            "complaint": st.column_config.TextColumn(width="medium"),
+            "score": st.column_config.NumberColumn(
+                "score P(regulatory)", format="%.4f"),
+            "llm_reasoning": st.column_config.TextColumn(width="large"),
+        },
+    )
+
+    st.download_button(
+        "Download scored CSV",
+        scored.to_csv(index=False).encode("utf-8"),
+        file_name="scored_complaints.csv",
+        mime="text/csv",
+        type="primary",
+    )
+
+    with st.expander("Regulation label mix"):
+        st.bar_chart(scored["label"].value_counts())
+
+
 if validation_go:
     _render_validation(model_id)
 elif fraud_go:
@@ -239,11 +329,15 @@ elif fraud_go:
     })
 elif complaint_go and complaint_text.strip():
     _render_complaint(complaint_text.strip())
+elif batch_go:
+    _render_batch(uploaded, use_holdout, batch_limit, batch_llm)
 else:
     st.info(
         "Pick an operation in the sidebar:\n\n"
         "- **① Model validation** — generate a second-line validation report for a model.\n"
         "- **② Complaint classification** — assign a real CFPB complaint to one of "
         "24 regulation categories with a RAG citation.\n"
-        "- **③ Fraud monitoring** — score a single transaction in real time."
+        "- **③ Fraud monitoring** — score a single transaction in real time.\n"
+        "- **④ Batch scoring (ingestion)** — upload a complaint CSV (or trigger the "
+        "reserved 5% holdout) and download the scored CSV with LLM reasoning."
     )

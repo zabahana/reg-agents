@@ -13,7 +13,8 @@ Recomputes the full development protocol from
 
 Protocol covered by the document:
   1. Exploratory analysis (tables + figures)
-  2. Stratified 80/10/10 train/validation/test split
+  2. 5% scoring holdout reserved first, then stratified 80/10/10
+     train/validation/test split
   3. Four classifiers with minority-class balancing:
      logistic regression, XGBoost, LightGBM, fine-tuned DistilBERT
   4. Model selection on the VALIDATION set (minority PR-AUC), final numbers
@@ -419,9 +420,13 @@ def seed_stability(name, df, n_seeds=5) -> dict:
 
     vals, tests = [], []
     for seed in range(n_seeds):
+        # Mirror the production protocol: 5% scoring holdout first, then 80/10/10.
+        pool, _ = train_test_split(
+            df, test_size=C.HOLDOUT_FRAC, random_state=seed,
+            stratify=df["is_regulatory"])
         x_tmp, x_te, y_tmp, y_te = train_test_split(
-            df["narrative"], df["is_regulatory"], test_size=0.10,
-            random_state=seed, stratify=df["is_regulatory"])
+            pool["narrative"], pool["is_regulatory"], test_size=0.10,
+            random_state=seed, stratify=pool["is_regulatory"])
         x_tr, x_va, y_tr, y_va = train_test_split(
             x_tmp, y_tmp, test_size=1 / 9, random_state=seed, stratify=y_tmp)
         vec = TfidfVectorizer(max_features=30000, ngram_range=(1, 2), min_df=2,
@@ -517,7 +522,8 @@ def save_artifacts(vec, models, champion, df, x_tr, x_va, x_te,
                 else [int(i) for i in x.index])
     p = os.path.join(ART_DIR, "split_indices.json")
     with open(p, "w", encoding="utf-8") as fh:
-        json.dump({"seed": SEED, "scheme": "stratified 80/10/10",
+        json.dump({"seed": SEED,
+                   "scheme": "5% scoring holdout, then stratified 80/10/10",
                    "key": id_col or "dataframe index",
                    "train": _ids(x_tr), "validation": _ids(x_va),
                    "test": _ids(x_te)}, fh)
@@ -719,10 +725,13 @@ def main() -> None:
     print("== EDA ==")
     eda = run_eda(df)
 
-    print("== split 80/10/10 ==")
+    print("== split: 5% scoring holdout, then 80/10/10 ==")
     x_tr, x_va, x_te, y_tr, y_va, y_te = C.split_stage1(df)
+    y_ho = C.scoring_holdout()["is_regulatory"]
     split_rows = []
-    for name, y in [("train (80%)", y_tr), ("validation (10%)", y_va), ("test (10%)", y_te)]:
+    for name, y in [("train (80%)", y_tr), ("validation (10%)", y_va),
+                    ("test (10%)", y_te),
+                    ("scoring holdout (5% of full)", y_ho)]:
         split_rows.append([name, f"{len(y):,}", f"{int(y.sum()):,}",
                            f"{int((1 - y).sum()):,}", f"{y.mean():.2%}"])
         print("  ", split_rows[-1])
@@ -889,7 +898,8 @@ def main() -> None:
                           f"({df['is_regulatory'].mean():.1%})",
             "non_regulatory_minority": f"{int((1 - df['is_regulatory']).sum()):,} "
                                        f"({1 - df['is_regulatory'].mean():.1%})"},
-        "split": "stratified 80/10/10 train/validation/test, seed fixed",
+        "split": "5% scoring holdout reserved first, then stratified 80/10/10 "
+                 "train/validation/test, seed fixed",
         "selection_metric": "minority-class (non-regulatory) PR-AUC on the "
                             "validation fold; test fold used once for final reporting",
         "decision_cutoff": f"per-model cut-off optimized on the validation fold "
@@ -923,7 +933,9 @@ def main() -> None:
         f"narratives (96.6% regulatory, 3.4% non-regulatory minority). Four "
         f"minority-balanced classifiers — logistic regression, XGBoost, "
         f"LightGBM, and a fine-tuned DistilBERT — were compared under a "
-        f"stratified 80/10/10 train/validation/test protocol, with selection "
+        f"stratified 80/10/10 train/validation/test protocol (applied after "
+        f"reserving a 5% scoring holdout for the batch-ingestion layer), "
+        f"with selection "
         f"on validation minority-class PR-AUC, a decision cut-off optimized "
         f"on the validation fold ({champ_thr:.3f} for the champion, in place "
         f"of the default 0.5), and one-shot test reporting. "
@@ -963,8 +975,12 @@ def main() -> None:
             f"GPU serving cost for this gate today; it remains the upgrade "
             f"path if complaint language drifts (subword tokenization "
             f"eliminates OOV) or if golden-set labels reveal weak-label "
-            f"ceiling effects. Recommendation: deploy {champion} with the "
-            f"balanced weighting at the {champ_thr:.3f} cut-off, revisit "
+            f"ceiling effects. Recommendation: {champion} with the balanced "
+            f"weighting at the {champ_thr:.3f} cut-off is the research "
+            f"champion and promotion candidate; the deployed production "
+            f"gate keeps the champion and cut-off of the committed "
+            f"governance run (docs/complaint_model/metrics.json), with "
+            f"promotion via the standard change-management path. Revisit "
             f"selection when the golden set lands or PSI drift alerts fire.")
 
     discussion_text = (
@@ -1096,7 +1112,10 @@ service-experience vocabulary.
 
 ## 4 · Experimental design
 
-**Split.** Stratified 80/10/10 train/validation/test on `is_regulatory`,
+**Split.** A stratified 5% scoring holdout is reserved FIRST — it feeds the
+batch-ingestion layer (`scripts/score_batch.py`, UI upload) and is never
+touched by training, validation, test, or threshold tuning. The remaining
+95% is split stratified 80/10/10 train/validation/test on `is_regulatory`,
 fixed seed {SEED} (Table 5). The test fold is split off first and touched
 exactly once — to produce the final columns of Table 7. Exact fold
 membership is committed in [`artifacts/split_indices.json`](artifacts/split_indices.json).
@@ -1256,7 +1275,7 @@ nondeterminism from parallel kernels.
         fh.write(md)
 
     meta = (f"Generated: {ts}\nData: data/complaints/cfpb_complaints.csv ({len(df):,} rows)\n"
-            f"Split: 80/10/10 stratified, seed {SEED}\n"
+            f"Split: 5% scoring holdout, then 80/10/10 stratified, seed {SEED}\n"
             f"Champion: {champion} @ cut-off {champ_thr:.3f}\n"
             f"Repo: reg-agents - model CMPL-REG-24 stage 1\n"
             f"Artifacts: docs/model_development/artifacts/")

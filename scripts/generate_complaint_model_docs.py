@@ -418,6 +418,8 @@ def main() -> None:
     data_text = (
         f"Source: real, redacted consumer complaint narratives from the public CFPB "
         f"Consumer Complaint Database ({s1['dataset']['n_rows']} curated rows; "
+        f"{s1['dataset']['n_holdout']} reserved as a 5% scoring holdout for the "
+        f"batch-ingestion layer before any modeling split, then "
         f"{s1['dataset']['n_train']} train / {s1['dataset']['n_val']} validation / "
         f"{s1['dataset']['n_test']} test; "
         f"regulatory rate {s1['dataset']['regulatory_rate']}).\n\n"
@@ -484,8 +486,10 @@ def main() -> None:
     ds_rows = [
         ["source", "CFPB Consumer Complaint Database (public, PII-redacted)"],
         ["curated rows", f"{ds['n_rows']:,}"],
+        ["scoring holdout (reserved first)",
+         f"{ds['n_holdout']:,} (5%, stratified — fed only through the ingestion layer)"],
         ["train / val / test split",
-         f"{ds['n_train']:,} / {ds['n_val']:,} / {ds['n_test']:,} (stratified 80/10/10)"],
+         f"{ds['n_train']:,} / {ds['n_val']:,} / {ds['n_test']:,} (stratified 80/10/10 of the remaining 95%)"],
         ["regulatory rate", f"{ds['regulatory_rate']:.1%}"],
         ["taxonomy coverage", f"{df['label'].nunique()} of 24 categories"],
         ["curation stages", "length filter · exact dedup · near dedup · PII check · balanced sampling"],

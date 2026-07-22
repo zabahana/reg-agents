@@ -45,6 +45,14 @@ Three orchestrated flows share the same agent/MCP infrastructure:
    cited excerpt. Development + validation documentation with accuracy figures
    ships as markdown **and PDF** in
    [`docs/complaint_model/`](docs/complaint_model/README.md).
+4. **Batch scoring (ingestion layer)** — a stratified **5% scoring holdout**
+   is reserved *before* the 80/10/10 modeling split and acts as the unseen
+   inbound batch. Trigger it from the CLI (`python scripts/score_batch.py`)
+   or upload any complaint CSV in the UI (**④ Batch scoring**); either path
+   runs the full two-stage pipeline and emits a scored CSV with
+   `complaint_id, complaint, score, is_regulatory, label, confidence,
+   llm_reasoning, citation_source, mode`. A committed LLM-scored sample lives
+   at `data/scoring/sample_scored_holdout.csv`.
 
 ---
 
@@ -154,13 +162,20 @@ switch to NIM) to get fully synthesized, cited output.
   `python scripts/fetch_cfpb_complaints.py`). Regenerate docs with
   `python scripts/generate_complaint_model_docs.py`.
 - **Publication-grade Model Development Document** — the full research
-  protocol for the complaint model's stage-1 gate (EDA, stratified 80/10/10
-  split, minority-balanced 4-model bake-off incl. fine-tuned DistilBERT,
-  validation-based selection with a validation-optimized decision cut-off,
-  OOV + sensitivity analyses) with every artifact
-  (fitted models, split indices, environment manifest):
+  protocol for the complaint model's stage-1 gate (EDA, 5% scoring holdout +
+  stratified 80/10/10 split, minority-balanced 4-model bake-off incl.
+  fine-tuned DistilBERT, validation-based selection with a
+  validation-optimized decision cut-off, OOV + sensitivity analyses) with
+  every artifact (fitted models, split indices, environment manifest):
   [`docs/model_development/`](docs/model_development/README.md). Regenerate
   with `python scripts/generate_model_development_doc.py`.
+- **Batch scoring / ingestion** — `python scripts/score_batch.py [--input
+  your.csv] [--limit N] [--no-llm]` scores a dataset (default: the reserved
+  5% holdout) through the two-stage pipeline and writes
+  `data/scoring/scored_<timestamp>.csv` with complaint id, complaint text,
+  stage-1 score, regulation label, and per-row LLM reasoning. The same flow
+  is exposed in the UI as **④ Batch scoring (ingestion)** with CSV upload
+  and download.
 
 ## Run on real NVIDIA infra
 

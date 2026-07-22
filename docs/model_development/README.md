@@ -15,14 +15,17 @@ reproduce or audit it. All numbers are recomputed from
 | `figures/` | All numbered figures (EDA, curves, comparison, OOV, sensitivity) |
 | `artifacts/tfidf_vectorizer.joblib` | Train-fitted TF-IDF featurizer (30k, 1–2 gram) |
 | `artifacts/model_*.joblib` | Fitted candidates — champion + challengers |
-| `artifacts/split_indices.json` | Exact 80/10/10 train/validation/test membership (seed 42) |
+| `artifacts/split_indices.json` | Exact train/validation/test membership after the 5% holdout reserve (seed 42) |
 | `artifacts/environment.txt` | Package versions used for the committed run |
 
 ## Protocol covered by the document
 
 1. **Exploratory analysis** — class balance, narrative length by class,
    regulatory rate by product, most discriminative terms.
-2. **Stratified 80/10/10 split** — test fold split off first, touched once.
+2. **5% scoring holdout + stratified 80/10/10 split** — a stratified 5%
+   holdout is reserved first for the batch-ingestion layer
+   (`scripts/score_batch.py`); the test fold is then split off the
+   remaining 95% first and touched once.
 3. **Four minority-balanced candidates** — logistic regression, XGBoost,
    LightGBM, fine-tuned DistilBERT (class-weighted loss).
 4. **Selection on validation minority PR-AUC** — with a 96.6% majority class,

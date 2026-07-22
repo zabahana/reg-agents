@@ -12,7 +12,9 @@ Two-stage architecture, deployed as an MCP tool server + A2A agent:
 
 1. **Stage 1 — binary regulatory gate.** TF-IDF features (1–2 grams, 30k
    vocabulary) into a logistic-regression vs XGBoost bake-off over a
-   stratified 80/10/10 train/validation/test split; champion selected on
+   stratified 80/10/10 train/validation/test split (applied after reserving
+   a stratified 5% scoring holdout for the batch-ingestion layer —
+   `scripts/score_batch.py` / UI upload); champion selected on
    validation PR-AUC and deployed at a validation-optimized decision cut-off
    (maximizing minority-class F1) rather than the default 0.5. Millisecond
    CPU inference; gates non-regulatory service complaints away from the
@@ -38,12 +40,12 @@ Free-text complaint narrative (truncated to 1,800 chars); retrieved regulation
 passages at stage 2. No demographic or protected-class attributes are used.
 
 ## Performance (committed validation run — docs/complaint_model/metrics.json)
-- **Stage 1 (champion: logistic regression, cut-off 0.722 tuned on
-  validation):** validation PR-AUC 0.996 · test PR-AUC 0.996 · ROC-AUC 0.908
-  · F1 0.97 · precision 0.99 · recall 0.96 (one-shot held-out test, n=400,
-  80/10/10 stratified split).
-- **Stage 2 (vs weak labels, stratified n=115):** exact agreement 0.37;
-  **regulation-family agreement 0.55**; macro-F1 0.31. Disagreements
+- **Stage 1 (champion: logistic regression, cut-off 0.788 tuned on
+  validation):** test PR-AUC 0.991 · ROC-AUC 0.797 · F1 0.95 · precision
+  0.97 · recall 0.94 (one-shot held-out test, n=380; 80/10/10 stratified
+  split after the 5% scoring-holdout reserve).
+- **Stage 2 (vs weak labels, stratified n=115):** exact agreement 0.35;
+  **regulation-family agreement 0.54**; macro-F1 0.29. Disagreements
   concentrate within regulation families (e.g., FCRA accuracy vs FCRA
   reinvestigation) where the weak reference itself is noisy.
 - Full evidence with figures/tables: `docs/complaint_model/` (development

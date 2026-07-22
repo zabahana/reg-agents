@@ -51,10 +51,13 @@ def test_stage1_beats_chance_and_classifies():
     assert champ["roc_auc"] > 0.7
     assert champ["pr_auc"] > 0.9
     # champion is selected on validation PR-AUC over an 80/10/10 split
+    # (after the 5% scoring holdout is reserved)
     assert champ["val_pr_auc"] > 0.9
     ds = s1["dataset"]
-    assert ds["n_train"] + ds["n_val"] + ds["n_test"] == ds["n_rows"]
+    assert ds["n_train"] + ds["n_val"] + ds["n_test"] + ds["n_holdout"] \
+        == ds["n_rows"]
     assert ds["n_val"] == ds["n_test"]
+    assert ds["n_holdout"] == round(C.HOLDOUT_FRAC * ds["n_rows"])
     # decision cut-off is optimized on validation, never assumed to be 0.5
     assert 0.0 < s1["threshold"] < 1.0
     assert champ["threshold"] == s1["threshold"]
@@ -83,3 +86,42 @@ def test_full_pipeline_without_llm():
     assert res["stage1"]["is_regulatory"] is True
     assert res["stage2"]["label"] in C.REGULATIONS
     assert res["stage2"]["citation"] is not None
+
+
+def test_scoring_holdout_reserved_before_split():
+    df = C.load_complaints()
+    model_df, holdout_df = C.split_scoring_holdout(df)
+    # 5% of the full dataset, stratified, and disjoint from the modeling pool
+    assert len(holdout_df) == round(C.HOLDOUT_FRAC * len(df))
+    assert len(model_df) + len(holdout_df) == len(df)
+    assert set(model_df.index).isdisjoint(set(holdout_df.index))
+    assert abs(holdout_df["is_regulatory"].mean()
+               - df["is_regulatory"].mean()) < 0.02
+    # the 80/10/10 split never touches holdout rows
+    x_tr, x_va, x_te, *_ = C.split_stage1(df)
+    split_idx = set(x_tr.index) | set(x_va.index) | set(x_te.index)
+    assert split_idx.isdisjoint(set(holdout_df.index))
+    assert len(split_idx) == len(model_df)
+
+
+def test_score_batch_output_schema():
+    batch = C.scoring_holdout().head(3)
+    scored = C.score_batch(batch, use_llm=False)
+    assert len(scored) == 3
+    for col in ("complaint_id", "complaint", "score", "is_regulatory",
+                "label", "llm_reasoning"):
+        assert col in scored.columns
+    assert scored["score"].between(0, 1).all()
+    assert scored["label"].isin(C.REGULATIONS).all()
+
+
+def test_score_batch_accepts_alias_text_column():
+    import pandas as pd
+
+    batch = pd.DataFrame({
+        "complaint": ["A debt collector keeps calling me about a debt "
+                      "that is not mine and threatens to sue me."],
+    })
+    scored = C.score_batch(batch, use_llm=False)
+    assert scored.iloc[0]["complaint_id"] == 1
+    assert scored.iloc[0]["label"] in C.REGULATIONS

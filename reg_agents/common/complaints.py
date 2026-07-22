@@ -266,16 +266,46 @@ def load_complaints(csv_path: Optional[str] = None) -> pd.DataFrame:
 
 
 # --------------------------------------------------------------------------- #
-# Stage 1: binary REGULATORY / NON-REGULATORY bake-off
+# Scoring holdout: 5% reserved BEFORE any modeling split
 # --------------------------------------------------------------------------- #
-def split_stage1(df: Optional[pd.DataFrame] = None, seed: int = SEED):
-    """Stratified 80/10/10 train/validation/test split on is_regulatory."""
+HOLDOUT_FRAC = 0.05
+
+
+def split_scoring_holdout(df: Optional[pd.DataFrame] = None, seed: int = SEED):
+    """Reserve a stratified 5% scoring holdout before the 80/10/10 split.
+
+    The holdout simulates a fresh, never-seen batch arriving through the
+    ingestion layer: it is carved out of the full dataset FIRST, so neither
+    training, validation, test, nor threshold tuning ever touches it.
+    Returns (model_df, holdout_df) with original columns intact.
+    """
     from sklearn.model_selection import train_test_split
 
     df = df if df is not None else load_complaints()
+    model_df, holdout_df = train_test_split(
+        df, test_size=HOLDOUT_FRAC, random_state=seed,
+        stratify=df["is_regulatory"],
+    )
+    return model_df, holdout_df
+
+
+def scoring_holdout(seed: int = SEED) -> pd.DataFrame:
+    """The reserved 5% batch (never used in training/validation/test)."""
+    return split_scoring_holdout(seed=seed)[1].reset_index(drop=True)
+
+
+# --------------------------------------------------------------------------- #
+# Stage 1: binary REGULATORY / NON-REGULATORY bake-off
+# --------------------------------------------------------------------------- #
+def split_stage1(df: Optional[pd.DataFrame] = None, seed: int = SEED):
+    """5% scoring holdout first, then stratified 80/10/10 on the remainder."""
+    from sklearn.model_selection import train_test_split
+
+    df = df if df is not None else load_complaints()
+    model_df, _holdout = split_scoring_holdout(df, seed=seed)
     x_rest, x_te, y_rest, y_te = train_test_split(
-        df["narrative"], df["is_regulatory"], test_size=0.10,
-        random_state=seed, stratify=df["is_regulatory"],
+        model_df["narrative"], model_df["is_regulatory"], test_size=0.10,
+        random_state=seed, stratify=model_df["is_regulatory"],
     )
     x_tr, x_va, y_tr, y_va = train_test_split(
         x_rest, y_rest, test_size=1 / 9,  # 1/9 x 0.90 = 0.10 overall
@@ -388,6 +418,7 @@ def train_stage1(df: Optional[pd.DataFrame] = None) -> Dict:
         "curves": curves,
         "dataset": {
             "n_rows": int(len(df)),
+            "n_holdout": int(len(df)) - int(len(x_tr)) - int(len(x_va)) - int(len(x_te)),
             "n_train": int(len(x_tr)),
             "n_val": int(len(x_va)),
             "n_test": int(len(x_te)),
@@ -633,3 +664,63 @@ def evaluate_stage2(n: int = 150, use_llm: bool = True,
 def label_distribution(df: Optional[pd.DataFrame] = None) -> Dict[str, int]:
     df = df if df is not None else load_complaints()
     return df["label"].value_counts().to_dict()
+
+
+# --------------------------------------------------------------------------- #
+# Batch scoring (ingestion layer)
+# --------------------------------------------------------------------------- #
+_TEXT_ALIASES = ("narrative", "complaint", "complaint_text", "text",
+                 "consumer complaint narrative")
+
+
+def _resolve_text_column(df: pd.DataFrame) -> str:
+    lower = {c.lower().strip(): c for c in df.columns}
+    for alias in _TEXT_ALIASES:
+        if alias in lower:
+            return lower[alias]
+    raise ValueError(
+        "no complaint-text column found — expected one of: "
+        + ", ".join(_TEXT_ALIASES)
+    )
+
+
+def score_batch(df: pd.DataFrame, use_llm: bool = True,
+                progress=None) -> pd.DataFrame:
+    """Score every row through the two-stage pipeline (ingestion layer).
+
+    Accepts any DataFrame with a complaint-text column (``narrative``,
+    ``complaint``, ``complaint_text``, ``text``) and an optional
+    ``complaint_id``. Returns one output row per input row:
+
+      complaint_id · complaint · score (stage-1 P(regulatory)) ·
+      is_regulatory · label · regulation_name · confidence ·
+      llm_reasoning · citation_source · mode
+
+    ``progress`` is an optional callable(done, total) for UI progress bars.
+    """
+    text_col = _resolve_text_column(df)
+    ids = (df["complaint_id"] if "complaint_id" in df.columns
+           else pd.Series(range(1, len(df) + 1), index=df.index))
+
+    rows = []
+    total = len(df)
+    for i, (idx, row) in enumerate(df.iterrows()):
+        text = str(row[text_col])
+        res = classify_complaint(text, use_llm=use_llm)
+        s1, s2 = res["stage1"], res["stage2"]
+        citation = s2.get("citation") or {}
+        rows.append({
+            "complaint_id": ids.loc[idx],
+            "complaint": text,
+            "score": s1["probability"],
+            "is_regulatory": bool(s1["is_regulatory"]),
+            "label": s2.get("label", ""),
+            "regulation_name": s2.get("regulation_name", ""),
+            "confidence": s2.get("confidence"),
+            "llm_reasoning": s2.get("rationale", ""),
+            "citation_source": citation.get("source", ""),
+            "mode": s2.get("mode", ""),
+        })
+        if progress is not None:
+            progress(i + 1, total)
+    return pd.DataFrame(rows)

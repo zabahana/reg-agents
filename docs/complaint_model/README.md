@@ -7,8 +7,10 @@ taxonomy** (UDAAP, sales practices, FCRA, FDCPA, Reg E, Reg Z, RESPA, BSA/AML,
 
 1. **Stage 1 — binary gate:** TF-IDF + logistic-regression/XGBoost bake-off
    answers *"is this complaint regulatory at all?"* (champion picked on
-   validation PR-AUC over an 80/10/10 split, deployed at a
-   validation-optimized decision cut-off rather than the default 0.5).
+   validation PR-AUC over an 80/10/10 split of the modeling pool — a 5%
+   scoring holdout is reserved first for the batch-ingestion layer — and
+   deployed at a validation-optimized decision cut-off rather than the
+   default 0.5).
 2. **Stage 2 — RAG + LLM:** if regulatory, retrieval over the regulation/policy
    corpus + LLM reasoning with few-shot examples assigns the category and
    returns a **citation** from the retrieved excerpts plus a rationale. A
@@ -57,5 +59,9 @@ python scripts/generate_complaint_model_docs.py --no-llm   # offline (keyword fa
   `sample_complaints`, `get_model_metrics` (`complaint-mcp`, :9105)
 - A2A agent: **Complaint Agent** (:8110) — classification + analyst summary,
   Prometheus counter `complaint_classifications_total{label,mode}`
-- UI: sidebar **③ Complaint classification** — pick a real CFPB complaint,
+- UI: sidebar **② Complaint classification** — pick a real CFPB complaint,
   see the label, citation, rationale, and the committed accuracy metrics.
+- Batch ingestion: `python scripts/score_batch.py` (or UI **④ Batch
+  scoring**) scores a CSV — default: the reserved 5% holdout — and emits
+  `complaint_id, complaint, score, label, llm_reasoning` per row
+  (sample: `data/scoring/sample_scored_holdout.csv`).

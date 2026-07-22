@@ -75,16 +75,19 @@ def fig_products(df) -> str:
     return path
 
 
-def fig_split(tr_pos, tr_neg, va_pos, va_neg, te_pos, te_neg) -> str:
-    labels = ["train (80%)", "validation (10%)", "test (10%)"]
-    pos = [tr_pos, va_pos, te_pos]
-    neg = [tr_neg, va_neg, te_neg]
-    fig, ax = plt.subplots(figsize=(7, 3.4))
+def fig_split(tr_pos, tr_neg, va_pos, va_neg, te_pos, te_neg,
+              ho_pos, ho_neg) -> str:
+    labels = ["train (80%)", "validation (10%)", "test (10%)",
+              "scoring holdout (5% of full)"]
+    pos = [tr_pos, va_pos, te_pos, ho_pos]
+    neg = [tr_neg, va_neg, te_neg, ho_neg]
+    fig, ax = plt.subplots(figsize=(7, 3.8))
     ax.barh(labels, pos, color=GREEN, label="regulatory", height=0.55)
     ax.barh(labels, neg, left=pos, color=GRAY, label="non-regulatory", height=0.55)
     for y, (p, n) in enumerate(zip(pos, neg)):
         ax.text(p + n + 25, y, f"{p + n:,} rows ({p:,} / {n:,})", va="center", fontsize=9)
-    ax.set(title="Stage-1 split — stratified 80/10/10 on is_regulatory (seed fixed)",
+    ax.set(title="Stage-1 split — 5% scoring holdout reserved first, then "
+                 "stratified 80/10/10 (seed fixed)",
            xlabel="complaints")
     ax.set_xlim(0, 4300)
     ax.invert_yaxis()
@@ -173,6 +176,9 @@ def main() -> None:
     tr_pos, tr_neg = int((y_tr == 1).sum()), int((y_tr == 0).sum())
     va_pos, va_neg = int((y_va == 1).sum()), int((y_va == 0).sum())
     te_pos, te_neg = int((y_te == 1).sum()), int((y_te == 0).sum())
+    holdout = C.scoring_holdout()
+    ho_pos = int(holdout["is_regulatory"].sum())
+    ho_neg = int((1 - holdout["is_regulatory"]).sum())
 
     lengths = df["narrative"].str.len()
     n_dup = int(df["narrative"].map(lambda t: re.sub(r"\s+", " ", t.lower()).strip())
@@ -184,7 +190,8 @@ def main() -> None:
     figs = {
         "length": fig_length(df),
         "products": fig_products(df),
-        "split": fig_split(tr_pos, tr_neg, va_pos, va_neg, te_pos, te_neg),
+        "split": fig_split(tr_pos, tr_neg, va_pos, va_neg, te_pos, te_neg,
+                           ho_pos, ho_neg),
     }
 
     # ---- tables ----
@@ -208,7 +215,12 @@ def main() -> None:
          f"PER_ISSUE_CAP=350 · max observed {issue_max}"],
         ["7 · Weak labeling", "CFPB product/issue taxonomy + keyword rules → 24 categories + "
                               "NON_REGULATORY", "reg_agents/common/complaints.py"],
-        ["8 · Split", "80/10/10 train/val/test, stratified on is_regulatory, fixed seed",
+        ["8 · Scoring holdout", "5% stratified reserve carved out FIRST — the "
+                                "ingestion layer's unseen batch, never used in "
+                                "training/validation/test or threshold tuning",
+         f"holdout {ho_pos + ho_neg:,} ({ho_pos:,} / {ho_neg:,})"],
+        ["9 · Split", "80/10/10 train/val/test on the remaining 95%, stratified "
+                      "on is_regulatory, fixed seed",
          f"train {tr_pos + tr_neg:,} / val {va_pos + va_neg:,} / test {te_pos + te_neg:,}"],
     ]
 
@@ -246,10 +258,20 @@ def main() -> None:
          f"{va_pos / (va_pos + va_neg):.2%}"],
         ["test", f"{te_pos + te_neg:,}", f"{te_pos:,}", f"{te_neg:,}",
          f"{te_pos / (te_pos + te_neg):.2%}"],
+        ["scoring holdout (5% of full)", f"{ho_pos + ho_neg:,}", f"{ho_pos:,}",
+         f"{ho_neg:,}", f"{ho_pos / (ho_pos + ho_neg):.2%}"],
     ]
 
     split_note = (
-        "Stage 1 uses a stratified 80/10/10 train/validation/test split (fixed "
+        "Before any modeling split, a stratified 5% SCORING HOLDOUT is "
+        "reserved (fixed seed). It simulates a fresh batch arriving through "
+        "the ingestion layer — scripts/score_batch.py and the UI's batch-"
+        "scoring upload feed it through the two-stage pipeline and emit a "
+        "scored CSV (complaint id, complaint, stage-1 score, LLM reasoning). "
+        "No training, validation, test, or threshold-tuning step ever "
+        "touches these rows.\n\n"
+        "Stage 1 then uses a stratified 80/10/10 train/validation/test split "
+        "of the remaining 95% (fixed "
         "seed): the test set is split off first (10%), then the remainder is "
         "split 8/1 into train and validation. Champion selection happens on "
         "validation PR-AUC only, and the decision cut-off on P(regulatory) is "
@@ -294,7 +316,8 @@ flowchart LR
     D --> E["PII verification\n(XXXX masking)"]
     E --> F["Balanced sampling\nper-issue cap 350"]
     F --> G["Weak labeling\n24 categories + non-reg"]
-    G --> H["Stratified split\n80/10/10 train/val/test"]
+    G --> H["Scoring holdout\n5% reserved first"]
+    H --> I["Stratified split\n80/10/10 train/val/test"]
 ```
 
 {md_table(["stage", "what it does", "parameter / evidence"], pipeline_rows)}
@@ -325,7 +348,7 @@ pipeline runs on CPU in seconds.
 
 ![length](figures/profile_length_hist.png)
 
-## 6 · Train / validation / test design
+## 6 · Scoring holdout + train / validation / test design
 
 {split_note}
 
@@ -358,7 +381,7 @@ pipeline runs on CPU in seconds.
         _table_page(pdf, "4 · Label coverage",
                     ["label", "category", "n", "share"], label_rows)
         _figure_page(pdf, "5 · Narrative length", figs["length"])
-        _text_page(pdf, "6 · Train / validation / test design", split_note)
+        _text_page(pdf, "6 · Scoring holdout + train/val/test design", split_note)
         _table_page(pdf, "6 · Split composition",
                     ["split", "rows", "regulatory", "non-regulatory", "reg rate"],
                     split_rows)
