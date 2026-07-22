@@ -1,0 +1,9 @@
+python==3.11.15
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.5.2
+xgboost==2.1.1
+lightgbm==4.7.0
+torch==2.13.0
+transformers==5.14.1
+matplotlib==3.9.2

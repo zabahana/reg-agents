@@ -1,0 +1,210 @@
+{
+  "generated": "2026-07-22 03:25 UTC",
+  "champion": "bert_finetuned",
+  "champion_threshold": 0.135,
+  "thresholds": {
+    "logistic_regression": 0.722,
+    "xgboost": 0.585,
+    "lightgbm": 0.992,
+    "bert_finetuned": 0.135
+  },
+  "split": [
+    [
+      "train (80%)",
+      "3,200",
+      "3,092",
+      "108",
+      "96.62%"
+    ],
+    [
+      "validation (10%)",
+      "400",
+      "386",
+      "14",
+      "96.50%"
+    ],
+    [
+      "test (10%)",
+      "400",
+      "387",
+      "13",
+      "96.75%"
+    ]
+  ],
+  "val": {
+    "logistic_regression": {
+      "pr_auc_minority": 0.2896,
+      "pr_auc_majority": 0.9958,
+      "roc_auc": 0.9099,
+      "f1_minority": 0.4762,
+      "balanced_acc": 0.8338,
+      "brier": 0.036
+    },
+    "xgboost": {
+      "pr_auc_minority": 0.3589,
+      "pr_auc_majority": 0.9938,
+      "roc_auc": 0.8642,
+      "f1_minority": 0.4848,
+      "balanced_acc": 0.7715,
+      "brier": 0.0345
+    },
+    "lightgbm": {
+      "pr_auc_minority": 0.4179,
+      "pr_auc_majority": 0.9968,
+      "roc_auc": 0.9241,
+      "f1_minority": 0.6061,
+      "balanced_acc": 0.8455,
+      "brier": 0.0349
+    },
+    "bert_finetuned": {
+      "pr_auc_minority": 0.4281,
+      "pr_auc_majority": 0.9977,
+      "roc_auc": 0.9413,
+      "f1_minority": 0.5385,
+      "balanced_acc": 0.7435,
+      "brier": 0.0913
+    }
+  },
+  "test": {
+    "logistic_regression": {
+      "pr_auc_minority": 0.5763,
+      "pr_auc_majority": 0.9962,
+      "roc_auc": 0.9076,
+      "f1_minority": 0.4444,
+      "balanced_acc": 0.7883,
+      "brier": 0.0259
+    },
+    "xgboost": {
+      "pr_auc_minority": 0.3457,
+      "pr_auc_majority": 0.996,
+      "roc_auc": 0.8984,
+      "f1_minority": 0.4,
+      "balanced_acc": 0.7166,
+      "brier": 0.0308
+    },
+    "lightgbm": {
+      "pr_auc_minority": 0.6329,
+      "pr_auc_majority": 0.9967,
+      "roc_auc": 0.9169,
+      "f1_minority": 0.6087,
+      "balanced_acc": 0.7654,
+      "brier": 0.0216
+    },
+    "bert_finetuned": {
+      "pr_auc_minority": 0.4109,
+      "pr_auc_majority": 0.9931,
+      "roc_auc": 0.8577,
+      "f1_minority": 0.5,
+      "balanced_acc": 0.7243,
+      "brier": 0.104
+    }
+  },
+  "fit_seconds": {
+    "logistic_regression": 0.03,
+    "xgboost": 5.36,
+    "lightgbm": 10.54,
+    "bert_finetuned": 109.8
+  },
+  "confusion_matrix_champion_test": [
+    [
+      6,
+      7
+    ],
+    [
+      5,
+      382
+    ]
+  ],
+  "oov": {
+    "corpus_rate": 0.022707135026356497,
+    "buckets": [
+      [
+        "Q1 (lowest OOV)",
+        "0.1%",
+        "100",
+        "1.00%"
+      ],
+      [
+        "Q2",
+        "1.2%",
+        "100",
+        "4.00%"
+      ],
+      [
+        "Q3",
+        "2.4%",
+        "100",
+        "4.00%"
+      ],
+      [
+        "Q4 (highest OOV)",
+        "4.9%",
+        "100",
+        "3.00%"
+      ]
+    ]
+  },
+  "sensitivity_perturbations": [
+    [
+      "(perturbations run on TF-IDF challenger \u2014 BERT champion; see notes)",
+      "\u2014",
+      "\u2014"
+    ]
+  ],
+  "class_weight_ablation": {
+    "model": "lightgbm",
+    "rows": [
+      [
+        "balanced (deployed)",
+        "0.992",
+        0.4179,
+        0.6329,
+        0.6087,
+        0.7654
+      ],
+      [
+        "unweighted",
+        "0.997",
+        0.4579,
+        0.621,
+        0.5455,
+        0.7269
+      ]
+    ]
+  },
+  "seed_stability": {
+    "model": "lightgbm",
+    "rows": [
+      [
+        "seed 0",
+        "0.1767",
+        "0.4645"
+      ],
+      [
+        "seed 1",
+        "0.2204",
+        "0.3567"
+      ],
+      [
+        "seed 2",
+        "0.3735",
+        "0.2905"
+      ],
+      [
+        "seed 3",
+        "0.6667",
+        "0.2253"
+      ],
+      [
+        "seed 4",
+        "0.3848",
+        "0.2591"
+      ],
+      [
+        "mean \u00b1 std",
+        "0.3644 \u00b1 0.1720",
+        "0.3192 \u00b1 0.0846"
+      ]
+    ]
+  }
+}

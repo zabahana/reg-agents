@@ -112,13 +112,15 @@ def fig_score_distribution(s1) -> str:
     c = s1["curves"][s1["champion"]]
     pos = c["y_score"][c["y_true"] == 1]
     neg = c["y_score"][c["y_true"] == 0]
+    thr = s1.get("threshold", 0.5)
     fig, ax = plt.subplots(figsize=(8, 4))
     bins = np.linspace(0, 1, 41)
     ax.hist(pos, bins=bins, alpha=0.65, density=True, color=GREEN,
             label=f"regulatory (n={len(pos)})")
     ax.hist(neg, bins=bins, alpha=0.65, density=True, color=GRAY,
             label=f"non-regulatory (n={len(neg)})")
-    ax.axvline(0.5, color="#c62828", ls="--", lw=1, label="decision threshold 0.5")
+    ax.axvline(thr, color="#c62828", ls="--", lw=1,
+               label=f"decision cut-off {thr:.3f} (validation-optimized)")
     ax.set(title=f"Stage 1 — score distribution by class ({s1['champion']})",
            xlabel="predicted P(regulatory)", ylabel="density")
     ax.legend(fontsize=8)
@@ -416,7 +418,8 @@ def main() -> None:
     data_text = (
         f"Source: real, redacted consumer complaint narratives from the public CFPB "
         f"Consumer Complaint Database ({s1['dataset']['n_rows']} curated rows; "
-        f"{s1['dataset']['n_train']} train / {s1['dataset']['n_test']} test; "
+        f"{s1['dataset']['n_train']} train / {s1['dataset']['n_val']} validation / "
+        f"{s1['dataset']['n_test']} test; "
         f"regulatory rate {s1['dataset']['regulatory_rate']}).\n\n"
         "Curation (scripts/fetch_cfpb_complaints.py) mirrors NVIDIA NeMo Data "
         "Curator stages: length filtering (ScoreFilter), exact deduplication "
@@ -469,7 +472,8 @@ def main() -> None:
         fallback="LLM narrative unavailable offline; see metrics tables and figures.",
     )
 
-    lb_headers = ["model", "pr_auc", "roc_auc", "f1", "precision", "recall", "accuracy"]
+    lb_headers = ["model", "val_pr_auc", "threshold", "pr_auc", "roc_auc", "f1",
+                  "precision", "recall", "accuracy"]
     lb_rows = [[r[h] for h in lb_headers] for r in s1["leaderboard"]]
     s2_rows = [[r["label"], r["support"], r["recall"]]
                for r in sorted(s2["per_label"], key=lambda x: -x["support"])]
@@ -480,7 +484,8 @@ def main() -> None:
     ds_rows = [
         ["source", "CFPB Consumer Complaint Database (public, PII-redacted)"],
         ["curated rows", f"{ds['n_rows']:,}"],
-        ["train / test split", f"{ds['n_train']:,} / {ds['n_test']:,} (stratified)"],
+        ["train / val / test split",
+         f"{ds['n_train']:,} / {ds['n_val']:,} / {ds['n_test']:,} (stratified 80/10/10)"],
         ["regulatory rate", f"{ds['regulatory_rate']:.1%}"],
         ["taxonomy coverage", f"{df['label'].nunique()} of 24 categories"],
         ["curation stages", "length filter · exact dedup · near dedup · PII check · balanced sampling"],
@@ -552,7 +557,8 @@ def main() -> None:
 
 {md_table(lb_headers, lb_rows)}
 
-Champion: **{s1['champion']}** (primary metric: PR-AUC).
+Champion: **{s1['champion']}** — selected on **validation PR-AUC**
+(`val_pr_auc`); all other columns are one-shot test-set metrics.
 
 ![curves](figures/stage1_curves.png)
 
@@ -560,10 +566,12 @@ Champion: **{s1['champion']}** (primary metric: PR-AUC).
 
 ### 4.1 · Score separation & calibration
 
-The score distribution shows the class separation the gate achieves at the 0.5
-operating threshold; the reliability diagram assesses whether predicted
-probabilities can be read as probabilities (relevant if the threshold is ever
-tuned to a cost matrix rather than 0.5).
+The score distribution shows the class separation the gate achieves at its
+deployed cut-off of {s1['threshold']:.3f} — optimized on the validation fold
+by maximizing minority-class F1, rather than assuming the default 0.5. The
+reliability diagram assesses whether predicted probabilities can be read as
+probabilities (a prerequisite for retuning the cut-off to an explicit cost
+matrix later).
 
 ![scores](figures/stage1_score_distribution.png)
 
@@ -692,11 +700,13 @@ PSI > 0.25.
         _table_page(pdf, "3.1 · Regulation taxonomy (with dataset support)",
                     tax_headers, tax_rows)
         _table_page(pdf, "4 · Stage-1 bake-off leaderboard", lb_headers, lb_rows,
-                    f"Champion: {s1['champion']} (primary metric: PR-AUC).")
+                    f"Champion: {s1['champion']} - selected on validation PR-AUC; "
+                    "other columns are one-shot test metrics.")
         _figure_page(pdf, "4 · Stage-1 ROC / PR curves", figs["curves"])
         _figure_page(pdf, "4 · Stage-1 confusion matrix", figs["confusion"])
         _figure_page(pdf, "4.1 · Score separation", figs["scores"],
-                     "Class separation at the 0.5 operating threshold.")
+                     f"Class separation at the validation-optimized cut-off "
+                     f"{s1['threshold']:.3f} (default 0.5 not used).")
         _figure_page(pdf, "4.1 · Calibration (reliability diagram)", figs["calibration"],
                      "Whether predicted probabilities can be read as probabilities.")
         _figure_page(pdf, "5 · Stage-2 per-category recall", figs["recall"],

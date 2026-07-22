@@ -2,7 +2,7 @@
 
 Profiles the curated CFPB dataset exactly as the model consumes it:
 schema, composition, label/family coverage, narrative-length distributions,
-the stage-1 train/test split, and recomputed data-quality checks that verify
+the stage-1 train/validation/test split, and recomputed data-quality checks that verify
 each curation stage post-hoc. Outputs MD + PDF + figures under
 docs/complaint_model/.
 
@@ -75,17 +75,18 @@ def fig_products(df) -> str:
     return path
 
 
-def fig_split(tr_pos, tr_neg, te_pos, te_neg) -> str:
-    fig, ax = plt.subplots(figsize=(7, 3.2))
-    ax.barh(["train (75%)", "test (25%)"], [tr_pos, te_pos], color=GREEN,
-            label="regulatory", height=0.55)
-    ax.barh(["train (75%)", "test (25%)"], [tr_neg, te_neg], left=[tr_pos, te_pos],
-            color=GRAY, label="non-regulatory", height=0.55)
-    for y, (p, n) in enumerate([(tr_pos, tr_neg), (te_pos, te_neg)]):
+def fig_split(tr_pos, tr_neg, va_pos, va_neg, te_pos, te_neg) -> str:
+    labels = ["train (80%)", "validation (10%)", "test (10%)"]
+    pos = [tr_pos, va_pos, te_pos]
+    neg = [tr_neg, va_neg, te_neg]
+    fig, ax = plt.subplots(figsize=(7, 3.4))
+    ax.barh(labels, pos, color=GREEN, label="regulatory", height=0.55)
+    ax.barh(labels, neg, left=pos, color=GRAY, label="non-regulatory", height=0.55)
+    for y, (p, n) in enumerate(zip(pos, neg)):
         ax.text(p + n + 25, y, f"{p + n:,} rows ({p:,} / {n:,})", va="center", fontsize=9)
-    ax.set(title="Stage-1 split — stratified on is_regulatory (seed fixed)",
+    ax.set(title="Stage-1 split — stratified 80/10/10 on is_regulatory (seed fixed)",
            xlabel="complaints")
-    ax.set_xlim(0, 3900)
+    ax.set_xlim(0, 4300)
     ax.invert_yaxis()
     ax.legend(fontsize=8, loc="lower right")
     ax.grid(axis="x", alpha=0.3)
@@ -167,13 +168,10 @@ def main() -> None:
     os.makedirs(FIG_DIR, exist_ok=True)
     ts = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    from sklearn.model_selection import train_test_split
-
     df = C.load_complaints()
-    x_tr, x_te, y_tr, y_te = train_test_split(
-        df["narrative"], df["is_regulatory"], test_size=0.25,
-        random_state=C.SEED, stratify=df["is_regulatory"])
+    _x_tr, _x_va, _x_te, y_tr, y_va, y_te = C.split_stage1(df)
     tr_pos, tr_neg = int((y_tr == 1).sum()), int((y_tr == 0).sum())
+    va_pos, va_neg = int((y_va == 1).sum()), int((y_va == 0).sum())
     te_pos, te_neg = int((y_te == 1).sum()), int((y_te == 0).sum())
 
     lengths = df["narrative"].str.len()
@@ -186,7 +184,7 @@ def main() -> None:
     figs = {
         "length": fig_length(df),
         "products": fig_products(df),
-        "split": fig_split(tr_pos, tr_neg, te_pos, te_neg),
+        "split": fig_split(tr_pos, tr_neg, va_pos, va_neg, te_pos, te_neg),
     }
 
     # ---- tables ----
@@ -210,8 +208,8 @@ def main() -> None:
          f"PER_ISSUE_CAP=350 · max observed {issue_max}"],
         ["7 · Weak labeling", "CFPB product/issue taxonomy + keyword rules → 24 categories + "
                               "NON_REGULATORY", "reg_agents/common/complaints.py"],
-        ["8 · Split", "75/25 train/test, stratified on is_regulatory, fixed seed",
-         f"train {tr_pos + tr_neg:,} / test {te_pos + te_neg:,}"],
+        ["8 · Split", "80/10/10 train/val/test, stratified on is_regulatory, fixed seed",
+         f"train {tr_pos + tr_neg:,} / val {va_pos + va_neg:,} / test {te_pos + te_neg:,}"],
     ]
 
     quality_rows = [
@@ -244,18 +242,22 @@ def main() -> None:
     split_rows = [
         ["train", f"{tr_pos + tr_neg:,}", f"{tr_pos:,}", f"{tr_neg:,}",
          f"{tr_pos / (tr_pos + tr_neg):.2%}"],
+        ["validation", f"{va_pos + va_neg:,}", f"{va_pos:,}", f"{va_neg:,}",
+         f"{va_pos / (va_pos + va_neg):.2%}"],
         ["test", f"{te_pos + te_neg:,}", f"{te_pos:,}", f"{te_neg:,}",
          f"{te_pos / (te_pos + te_neg):.2%}"],
     ]
 
     split_note = (
-        "Stage 1 uses a stratified 75/25 train/test split (fixed seed). There is no "
-        "separate validation split: with only two candidate models and a single "
-        "primary metric (PR-AUC), the held-out test set doubles as the selection "
-        "set. This is documented as a limitation — champion selection on the test "
-        "set risks selection optimism as the candidate pool grows; the validation "
-        "report's golden-set condition and any move to hyperparameter search would "
-        "require a dedicated validation fold (60/20/20) or cross-validation.\n\n"
+        "Stage 1 uses a stratified 80/10/10 train/validation/test split (fixed "
+        "seed): the test set is split off first (10%), then the remainder is "
+        "split 8/1 into train and validation. Champion selection happens on "
+        "validation PR-AUC only, and the decision cut-off on P(regulatory) is "
+        "optimized on the same validation fold (maximizing minority-class F1) "
+        "instead of assuming the default 0.5. The test set is touched exactly "
+        "once, to report final metrics for the already-selected, already-"
+        "thresholded model — so neither model choice nor cut-off choice can "
+        "leak into reported performance.\n\n"
         "Stage 2 involves no training: it is a prompted LLM over retrieved context. "
         "Its evaluation uses a separate stratified sample (n=115) of regulatory "
         "complaints scored against the weak labels, reported in the validation "
@@ -292,7 +294,7 @@ flowchart LR
     D --> E["PII verification\n(XXXX masking)"]
     E --> F["Balanced sampling\nper-issue cap 350"]
     F --> G["Weak labeling\n24 categories + non-reg"]
-    G --> H["Stratified split\n75/25 train/test"]
+    G --> H["Stratified split\n80/10/10 train/val/test"]
 ```
 
 {md_table(["stage", "what it does", "parameter / evidence"], pipeline_rows)}

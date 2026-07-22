@@ -50,6 +50,14 @@ def test_stage1_beats_chance_and_classifies():
     champ = s1["leaderboard"][0]
     assert champ["roc_auc"] > 0.7
     assert champ["pr_auc"] > 0.9
+    # champion is selected on validation PR-AUC over an 80/10/10 split
+    assert champ["val_pr_auc"] > 0.9
+    ds = s1["dataset"]
+    assert ds["n_train"] + ds["n_val"] + ds["n_test"] == ds["n_rows"]
+    assert ds["n_val"] == ds["n_test"]
+    # decision cut-off is optimized on validation, never assumed to be 0.5
+    assert 0.0 < s1["threshold"] < 1.0
+    assert champ["threshold"] == s1["threshold"]
     out = C.classify_binary(
         "A debt collector calls me ten times a day about a debt that is not mine."
     )

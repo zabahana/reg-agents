@@ -268,8 +268,52 @@ def load_complaints(csv_path: Optional[str] = None) -> pd.DataFrame:
 # --------------------------------------------------------------------------- #
 # Stage 1: binary REGULATORY / NON-REGULATORY bake-off
 # --------------------------------------------------------------------------- #
-def train_stage1(df: Optional[pd.DataFrame] = None, test_size: float = 0.25) -> Dict:
-    """Train logistic + XGBoost on TF-IDF; return models, split and metrics."""
+def split_stage1(df: Optional[pd.DataFrame] = None, seed: int = SEED):
+    """Stratified 80/10/10 train/validation/test split on is_regulatory."""
+    from sklearn.model_selection import train_test_split
+
+    df = df if df is not None else load_complaints()
+    x_rest, x_te, y_rest, y_te = train_test_split(
+        df["narrative"], df["is_regulatory"], test_size=0.10,
+        random_state=seed, stratify=df["is_regulatory"],
+    )
+    x_tr, x_va, y_tr, y_va = train_test_split(
+        x_rest, y_rest, test_size=1 / 9,  # 1/9 x 0.90 = 0.10 overall
+        random_state=seed, stratify=y_rest,
+    )
+    return x_tr, x_va, x_te, y_tr, y_va, y_te
+
+
+def optimal_threshold(y_va, val_proba) -> float:
+    """Validation-optimized decision cut-off on P(regulatory).
+
+    Maximizes minority-class (non-regulatory) F1 on the validation fold —
+    the majority class is saturated, so the cut-off choice is really about
+    how cleanly non-regulatory complaints are gated out. Never uses the
+    default 0.5 blindly and never touches the test fold.
+    """
+    from sklearn.metrics import f1_score
+
+    y_va = pd.Series(y_va).to_numpy()
+    val_proba = pd.Series(val_proba).to_numpy()
+    best_thr, best_f1 = 0.5, -1.0
+    for thr in sorted({round(float(p), 3) for p in val_proba}):
+        preds = (val_proba >= thr).astype(int)
+        f1 = f1_score(1 - y_va, 1 - preds, zero_division=0)
+        if f1 > best_f1:
+            best_f1, best_thr = f1, thr
+    return float(best_thr)
+
+
+def train_stage1(df: Optional[pd.DataFrame] = None) -> Dict:
+    """Train logistic + XGBoost on TF-IDF with an 80/10/10 split.
+
+    Minority class is up-weighted in every candidate (class_weight='balanced'
+    for the linear model, scale_pos_weight for XGBoost). The champion is
+    selected on VALIDATION PR-AUC and its decision cut-off is optimized on
+    the validation fold (not the default 0.5); the test set is touched once,
+    to report the champions' (and challengers') final metrics.
+    """
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import (
@@ -281,17 +325,16 @@ def train_stage1(df: Optional[pd.DataFrame] = None, test_size: float = 0.25) -> 
         recall_score,
         roc_auc_score,
     )
-    from sklearn.model_selection import train_test_split
 
     df = df if df is not None else load_complaints()
-    x_tr, x_te, y_tr, y_te = train_test_split(
-        df["narrative"], df["is_regulatory"], test_size=test_size,
-        random_state=SEED, stratify=df["is_regulatory"],
-    )
+    x_tr, x_va, x_te, y_tr, y_va, y_te = split_stage1(df)
     vec = TfidfVectorizer(max_features=30000, ngram_range=(1, 2),
                           sublinear_tf=True, min_df=2)
-    xt_tr, xt_te = vec.fit_transform(x_tr), vec.transform(x_te)
+    xt_tr = vec.fit_transform(x_tr)
+    xt_va, xt_te = vec.transform(x_va), vec.transform(x_te)
 
+    # Balance weight on the minority (non-regulatory) class.
+    neg_pos_ratio = float((y_tr == 0).sum() / max((y_tr == 1).sum(), 1))
     candidates: Dict[str, object] = {
         "logistic_regression": LogisticRegression(
             max_iter=2000, C=4.0, class_weight="balanced", random_state=SEED),
@@ -300,20 +343,26 @@ def train_stage1(df: Optional[pd.DataFrame] = None, test_size: float = 0.25) -> 
         import xgboost as xgb
         candidates["xgboost"] = xgb.XGBClassifier(
             n_estimators=300, max_depth=6, learning_rate=0.1,
-            scale_pos_weight=float((y_tr == 0).sum() / max((y_tr == 1).sum(), 1)),
+            scale_pos_weight=neg_pos_ratio,
             tree_method="hist", eval_metric="aucpr", random_state=SEED)
     except Exception:  # noqa: BLE001 - xgboost optional (e.g. macOS w/o libomp)
         pass
 
-    leaderboard, fitted, curves = [], {}, {}
+    leaderboard, fitted, curves, thresholds = [], {}, {}, {}
     for name, model in candidates.items():
         model.fit(xt_tr, y_tr)
+        val_proba = model.predict_proba(xt_va)[:, 1]
         proba = model.predict_proba(xt_te)[:, 1]
-        preds = (proba >= 0.5).astype(int)
+        # Per-candidate cut-off, tuned on validation only (never 0.5 by default).
+        thr = optimal_threshold(y_va, val_proba)
+        thresholds[name] = thr
+        preds = (proba >= thr).astype(int)
         fitted[name] = model
         curves[name] = {"y_true": y_te.to_numpy(), "y_score": proba}
         leaderboard.append({
             "model": name,
+            "val_pr_auc": round(float(average_precision_score(y_va, val_proba)), 4),
+            "threshold": thr,
             "pr_auc": round(float(average_precision_score(y_te, proba)), 4),
             "roc_auc": round(float(roc_auc_score(y_te, proba)), 4),
             "f1": round(float(f1_score(y_te, preds)), 4),
@@ -321,21 +370,26 @@ def train_stage1(df: Optional[pd.DataFrame] = None, test_size: float = 0.25) -> 
             "recall": round(float(recall_score(y_te, preds)), 4),
             "accuracy": round(float(accuracy_score(y_te, preds)), 4),
         })
-    leaderboard.sort(key=lambda r: (r["pr_auc"], r["roc_auc"]), reverse=True)
+    # Model selection happens on the validation set, not the test set.
+    leaderboard.sort(key=lambda r: (r["val_pr_auc"], r["roc_auc"]), reverse=True)
     champion = leaderboard[0]["model"]
-    champ_preds = (curves[champion]["y_score"] >= 0.5).astype(int)
+    champ_thr = thresholds[champion]
+    champ_preds = (curves[champion]["y_score"] >= champ_thr).astype(int)
     cm = confusion_matrix(curves[champion]["y_true"], champ_preds).tolist()
 
     return {
         "vectorizer": vec,
         "models": fitted,
         "champion": champion,
+        "threshold": champ_thr,
+        "thresholds": thresholds,
         "leaderboard": leaderboard,
         "confusion_matrix": cm,
         "curves": curves,
         "dataset": {
             "n_rows": int(len(df)),
             "n_train": int(len(x_tr)),
+            "n_val": int(len(x_va)),
             "n_test": int(len(x_te)),
             "regulatory_rate": round(float(df["is_regulatory"].mean()), 4),
             "source": "CFPB Consumer Complaint Database (public, narratives redacted)",
@@ -354,8 +408,9 @@ def classify_binary(text: str) -> Dict:
     xt = s1["vectorizer"].transform([text])
     prob = float(s1["models"][s1["champion"]].predict_proba(xt)[0, 1])
     return {
-        "is_regulatory": prob >= 0.5,
+        "is_regulatory": prob >= s1["threshold"],
         "probability": round(prob, 4),
+        "threshold": s1["threshold"],
         "model": s1["champion"],
     }
 

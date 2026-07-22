@@ -153,6 +153,14 @@ switch to NIM) to get fully synthesized, cited output.
   (CFPB Consumer Complaint Database; refresh with
   `python scripts/fetch_cfpb_complaints.py`). Regenerate docs with
   `python scripts/generate_complaint_model_docs.py`.
+- **Publication-grade Model Development Document** — the full research
+  protocol for the complaint model's stage-1 gate (EDA, stratified 80/10/10
+  split, minority-balanced 4-model bake-off incl. fine-tuned DistilBERT,
+  validation-based selection with a validation-optimized decision cut-off,
+  OOV + sensitivity analyses) with every artifact
+  (fitted models, split indices, environment manifest):
+  [`docs/model_development/`](docs/model_development/README.md). Regenerate
+  with `python scripts/generate_model_development_doc.py`.
 
 ## Run on real NVIDIA infra
 

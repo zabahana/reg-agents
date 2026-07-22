@@ -6,7 +6,9 @@ taxonomy** (UDAAP, sales practices, FCRA, FDCPA, Reg E, Reg Z, RESPA, BSA/AML,
 …) using a two-stage architecture:
 
 1. **Stage 1 — binary gate:** TF-IDF + logistic-regression/XGBoost bake-off
-   answers *"is this complaint regulatory at all?"* (champion picked on PR-AUC).
+   answers *"is this complaint regulatory at all?"* (champion picked on
+   validation PR-AUC over an 80/10/10 split, deployed at a
+   validation-optimized decision cut-off rather than the default 0.5).
 2. **Stage 2 — RAG + LLM:** if regulatory, retrieval over the regulation/policy
    corpus + LLM reasoning with few-shot examples assigns the category and
    returns a **citation** from the retrieved excerpts plus a rationale. A
@@ -24,6 +26,12 @@ Both include accuracy **figures** (ROC/PR curves, confusion matrix, per-category
 recall, label distribution) and **tables** (bake-off leaderboard, per-category
 support/recall). Machine-readable metrics: [`metrics.json`](metrics.json)
 (consumed by the Streamlit UI's complaint panel).
+
+The **publication-grade Model Development Document** for the stage-1 gate —
+EDA, 80/10/10 split, four-model bake-off (incl. fine-tuned DistilBERT),
+validation-optimized decision cut-off, OOV and sensitivity analyses, with
+fitted-model artifacts — lives in
+[`docs/model_development/`](../model_development/README.md).
 
 ## Data
 

@@ -1,66 +1,71 @@
 {
-  "generated": "2026-07-19 02:45 UTC",
+  "generated": "2026-07-22 03:04 UTC",
   "llm": {
     "provider": "nim",
     "model": "meta/llama-3.1-8b-instruct"
   },
   "dataset": {
     "n_rows": 4000,
-    "n_train": 3000,
-    "n_test": 1000,
+    "n_train": 3200,
+    "n_val": 400,
+    "n_test": 400,
     "regulatory_rate": 0.9663,
     "source": "CFPB Consumer Complaint Database (public, narratives redacted)"
   },
   "stage1": {
-    "champion": "xgboost",
+    "champion": "logistic_regression",
     "leaderboard": [
       {
-        "model": "xgboost",
-        "pr_auc": 0.9939,
-        "roc_auc": 0.852,
-        "f1": 0.9742,
-        "precision": 0.9712,
-        "recall": 0.9772,
+        "model": "logistic_regression",
+        "val_pr_auc": 0.9958,
+        "threshold": 0.722,
+        "pr_auc": 0.9962,
+        "roc_auc": 0.9076,
+        "f1": 0.9738,
+        "precision": 0.9867,
+        "recall": 0.9612,
         "accuracy": 0.95
       },
       {
-        "model": "logistic_regression",
-        "pr_auc": 0.9933,
-        "roc_auc": 0.8713,
-        "f1": 0.9805,
-        "precision": 0.9725,
-        "recall": 0.9886,
-        "accuracy": 0.962
+        "model": "xgboost",
+        "val_pr_auc": 0.9938,
+        "threshold": 0.585,
+        "pr_auc": 0.996,
+        "roc_auc": 0.8984,
+        "f1": 0.9766,
+        "precision": 0.9817,
+        "recall": 0.9716,
+        "accuracy": 0.955
       }
     ],
     "confusion_matrix": [
       [
-        6,
-        28
+        8,
+        5
       ],
       [
-        22,
-        944
+        15,
+        372
       ]
     ]
   },
   "stage2": {
     "n": 115,
     "mode": "rag_llm",
-    "accuracy": 0.2609,
-    "family_accuracy": 0.4348,
-    "macro_f1": 0.24,
-    "weighted_f1": 0.2504,
+    "accuracy": 0.3652,
+    "family_accuracy": 0.5478,
+    "macro_f1": 0.3052,
+    "weighted_f1": 0.3185,
     "per_label": [
       {
         "label": "BSA_AML",
         "support": 5,
-        "recall": 0.0
+        "recall": 0.4
       },
       {
         "label": "ECOA_ADVERSE_ACTION",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.8
       },
       {
         "label": "ECOA_DISCRIMINATION",
@@ -70,12 +75,12 @@
       {
         "label": "FCRA_ACCURACY",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.2
       },
       {
         "label": "FCRA_INVESTIGATION",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.6
       },
       {
         "label": "FCRA_PERMISSIBLE_PURPOSE",
@@ -85,7 +90,7 @@
       {
         "label": "FDCPA_COMMUNICATION",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.8
       },
       {
         "label": "FDCPA_DEBT_VALIDATION",
@@ -95,7 +100,7 @@
       {
         "label": "FDCPA_THREATS",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.0
       },
       {
         "label": "GLBA_PRIVACY",
@@ -120,7 +125,7 @@
       {
         "label": "REG_E_UNAUTHORIZED",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.8
       },
       {
         "label": "REG_Z_BILLING",
@@ -140,17 +145,17 @@
       {
         "label": "RESPA_SERVICING",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.8
       },
       {
         "label": "SALES_PRACTICES",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.6
       },
       {
         "label": "SCRA_MLA",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.8
       },
       {
         "label": "TILA_ORIGINATION",
@@ -165,7 +170,7 @@
       {
         "label": "UDAAP",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.2
       }
     ]
   }
