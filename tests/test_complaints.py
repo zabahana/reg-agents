@@ -61,6 +61,12 @@ def test_stage1_beats_chance_and_classifies():
     # decision cut-off is optimized on validation, never assumed to be 0.5
     assert 0.0 < s1["threshold"] < 1.0
     assert champ["threshold"] == s1["threshold"]
+    # regularization is validation-tuned and the generalization gap is
+    # tracked in every leaderboard row (train memorization guard)
+    assert "train_roc_auc" in champ and "train_test_gap" in champ
+    if champ["model"] == "logistic_regression":
+        assert champ["params"].startswith(("l1", "l2"))
+        assert champ["train_test_gap"] < 0.2
     out = C.classify_binary(
         "A debt collector calls me ten times a day about a debt that is not mine."
     )

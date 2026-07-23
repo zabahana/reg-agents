@@ -177,7 +177,12 @@ def make_model(name: str, y_tr, weighted: bool = True):
 
     spw = float((y_tr == 0).sum()) / max(float((y_tr == 1).sum()), 1.0)
     if name == "logistic_regression":
-        return LogisticRegression(max_iter=2000, C=4.0, random_state=SEED,
+        # L1 regularization: the unpenalized-ish L2/C=4 variant memorizes the
+        # training fold (train ROC ~1.0, ~0.20 train/test gap). Production
+        # tunes {l1,l2} x C on the validation fold (complaints.tune_logistic);
+        # l1, C=2.0 is the committed winner and is mirrored here.
+        return LogisticRegression(max_iter=3000, C=2.0, penalty="l1",
+                                  solver="liblinear", random_state=SEED,
                                   class_weight="balanced" if weighted else None)
     if name == "xgboost":
         import xgboost as xgb
@@ -848,7 +853,8 @@ def main() -> None:
     spw = float((np.asarray(y_tr) == 0).sum()) / max(float((np.asarray(y_tr) == 1).sum()), 1.0)
     hp_rows = [
         ["logistic_regression", "TF-IDF 30k, 1-2 gram, sublinear, min_df=2",
-         "L2, C=4.0, max_iter=2000, class_weight='balanced'",
+         "L1, C=2.0 (validation-tuned over {l1,l2}×C to close a ~0.20 "
+         "train/test ROC gap), liblinear, class_weight='balanced'",
          f"{fit_secs.get('logistic_regression', '—')}"],
         ["xgboost", "same TF-IDF features",
          f"300 trees, depth 6, lr 0.1, hist, aucpr, scale_pos_weight={spw:.1f}",

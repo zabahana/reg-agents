@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-22 19:37 UTC",
+  "generated": "2026-07-23 01:34 UTC",
   "llm": {
     "provider": "nim",
     "model": "meta/llama-3.1-8b-instruct"
@@ -18,21 +18,27 @@
     "leaderboard": [
       {
         "model": "logistic_regression",
-        "val_pr_auc": 0.9913,
-        "threshold": 0.788,
-        "pr_auc": 0.9905,
-        "roc_auc": 0.7965,
-        "f1": 0.9542,
-        "precision": 0.9718,
+        "params": "l1, C=2.0",
+        "val_pr_auc": 0.9957,
+        "threshold": 0.639,
+        "pr_auc": 0.9933,
+        "train_roc_auc": 0.9966,
+        "roc_auc": 0.8491,
+        "train_test_gap": 0.1475,
+        "f1": 0.9569,
+        "precision": 0.9773,
         "recall": 0.9373,
-        "accuracy": 0.9132
+        "accuracy": 0.9184
       },
       {
         "model": "xgboost",
+        "params": "n_estimators=300, max_depth=6, lr=0.1",
         "val_pr_auc": 0.9901,
         "threshold": 0.844,
         "pr_auc": 0.9882,
+        "train_roc_auc": 1.0,
         "roc_auc": 0.7355,
+        "train_test_gap": 0.2645,
         "f1": 0.9453,
         "precision": 0.974,
         "recall": 0.9183,
@@ -41,8 +47,8 @@
     ],
     "confusion_matrix": [
       [
-        3,
-        10
+        5,
+        8
       ],
       [
         23,
@@ -53,10 +59,10 @@
   "stage2": {
     "n": 115,
     "mode": "rag_llm",
-    "accuracy": 0.3478,
-    "family_accuracy": 0.5391,
-    "macro_f1": 0.2928,
-    "weighted_f1": 0.3055,
+    "accuracy": 0.3913,
+    "family_accuracy": 0.5652,
+    "macro_f1": 0.3467,
+    "weighted_f1": 0.3618,
     "per_label": [
       {
         "label": "BSA_AML",
@@ -66,7 +72,7 @@
       {
         "label": "ECOA_ADVERSE_ACTION",
         "support": 5,
-        "recall": 0.8
+        "recall": 0.4
       },
       {
         "label": "ECOA_DISCRIMINATION",
@@ -81,17 +87,17 @@
       {
         "label": "FCRA_INVESTIGATION",
         "support": 5,
-        "recall": 0.8
+        "recall": 0.6
       },
       {
         "label": "FCRA_PERMISSIBLE_PURPOSE",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.8
       },
       {
         "label": "FDCPA_COMMUNICATION",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.8
       },
       {
         "label": "FDCPA_DEBT_VALIDATION",
@@ -101,7 +107,7 @@
       {
         "label": "FDCPA_THREATS",
         "support": 5,
-        "recall": 0.0
+        "recall": 0.2
       },
       {
         "label": "GLBA_PRIVACY",
@@ -141,7 +147,7 @@
       {
         "label": "RESPA_LOSS_MITIGATION",
         "support": 5,
-        "recall": 0.4
+        "recall": 0.6
       },
       {
         "label": "RESPA_SERVICING",
@@ -156,7 +162,7 @@
       {
         "label": "SCRA_MLA",
         "support": 5,
-        "recall": 0.8
+        "recall": 1.0
       },
       {
         "label": "TILA_ORIGINATION",
@@ -171,7 +177,7 @@
       {
         "label": "UDAAP",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.4
       }
     ]
   }

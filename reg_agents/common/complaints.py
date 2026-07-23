@@ -335,17 +335,43 @@ def optimal_threshold(y_va, val_proba) -> float:
     return float(best_thr)
 
 
+def tune_logistic(xt_tr, y_tr, xt_va, y_va):
+    """Regularization-tuned logistic regression (validation-selected).
+
+    An unregularized-ish linear model on 30k TF-IDF features memorizes the
+    training fold (train ROC-AUC ~1.0 vs test ~0.80 — a ~0.20 generalization
+    gap). Tune penalty (L1/L2) and C on the VALIDATION fold; L1 typically
+    wins here, keeping ~150 non-zero n-gram weights and closing most of the
+    gap. Returns (fitted_model, params_string).
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    best, best_auc, best_desc = None, -1.0, ""
+    for penalty in ("l1", "l2"):
+        for c in (0.5, 1.0, 2.0, 4.0):
+            m = LogisticRegression(max_iter=3000, C=c, penalty=penalty,
+                                   solver="liblinear",
+                                   class_weight="balanced", random_state=SEED)
+            m.fit(xt_tr, y_tr)
+            auc = roc_auc_score(y_va, m.predict_proba(xt_va)[:, 1])
+            if auc > best_auc:
+                best, best_auc, best_desc = m, auc, f"{penalty}, C={c}"
+    return best, best_desc
+
+
 def train_stage1(df: Optional[pd.DataFrame] = None) -> Dict:
     """Train logistic + XGBoost on TF-IDF with an 80/10/10 split.
 
     Minority class is up-weighted in every candidate (class_weight='balanced'
-    for the linear model, scale_pos_weight for XGBoost). The champion is
-    selected on VALIDATION PR-AUC and its decision cut-off is optimized on
-    the validation fold (not the default 0.5); the test set is touched once,
-    to report the champions' (and challengers') final metrics.
+    for the linear model, scale_pos_weight for XGBoost). The logistic model's
+    regularization (penalty + C) is tuned on the validation fold to close the
+    train/test generalization gap. The champion is selected on VALIDATION
+    PR-AUC and its decision cut-off is optimized on the validation fold (not
+    the default 0.5); the test set is touched once, to report the champions'
+    (and challengers') final metrics.
     """
     from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import (
         accuracy_score,
         average_precision_score,
@@ -365,22 +391,23 @@ def train_stage1(df: Optional[pd.DataFrame] = None) -> Dict:
 
     # Balance weight on the minority (non-regulatory) class.
     neg_pos_ratio = float((y_tr == 0).sum() / max((y_tr == 1).sum(), 1))
-    candidates: Dict[str, object] = {
-        "logistic_regression": LogisticRegression(
-            max_iter=2000, C=4.0, class_weight="balanced", random_state=SEED),
-    }
+    lr_model, lr_params = tune_logistic(xt_tr, y_tr, xt_va, y_va)
+    candidates: Dict[str, object] = {"logistic_regression": lr_model}
+    params: Dict[str, str] = {"logistic_regression": lr_params}
     try:
         import xgboost as xgb
         candidates["xgboost"] = xgb.XGBClassifier(
             n_estimators=300, max_depth=6, learning_rate=0.1,
             scale_pos_weight=neg_pos_ratio,
             tree_method="hist", eval_metric="aucpr", random_state=SEED)
+        params["xgboost"] = "n_estimators=300, max_depth=6, lr=0.1"
     except Exception:  # noqa: BLE001 - xgboost optional (e.g. macOS w/o libomp)
         pass
 
     leaderboard, fitted, curves, thresholds = [], {}, {}, {}
     for name, model in candidates.items():
         model.fit(xt_tr, y_tr)
+        train_proba = model.predict_proba(xt_tr)[:, 1]
         val_proba = model.predict_proba(xt_va)[:, 1]
         proba = model.predict_proba(xt_te)[:, 1]
         # Per-candidate cut-off, tuned on validation only (never 0.5 by default).
@@ -389,12 +416,19 @@ def train_stage1(df: Optional[pd.DataFrame] = None) -> Dict:
         preds = (proba >= thr).astype(int)
         fitted[name] = model
         curves[name] = {"y_true": y_te.to_numpy(), "y_score": proba}
+        train_roc = round(float(roc_auc_score(y_tr, train_proba)), 4)
+        test_roc = round(float(roc_auc_score(y_te, proba)), 4)
         leaderboard.append({
             "model": name,
+            "params": params.get(name, ""),
             "val_pr_auc": round(float(average_precision_score(y_va, val_proba)), 4),
             "threshold": thr,
             "pr_auc": round(float(average_precision_score(y_te, proba)), 4),
-            "roc_auc": round(float(roc_auc_score(y_te, proba)), 4),
+            "train_roc_auc": train_roc,
+            "roc_auc": test_roc,
+            # Generalization gap — monitored so regularization regressions
+            # (train memorization) are visible in every committed run.
+            "train_test_gap": round(train_roc - test_roc, 4),
             "f1": round(float(f1_score(y_te, preds)), 4),
             "precision": round(float(precision_score(y_te, preds)), 4),
             "recall": round(float(recall_score(y_te, preds)), 4),

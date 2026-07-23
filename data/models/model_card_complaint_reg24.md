@@ -14,10 +14,14 @@ Two-stage architecture, deployed as an MCP tool server + A2A agent:
    vocabulary) into a logistic-regression vs XGBoost bake-off over a
    stratified 80/10/10 train/validation/test split (applied after reserving
    a stratified 5% scoring holdout for the batch-ingestion layer —
-   `scripts/score_batch.py` / UI upload); champion selected on
-   validation PR-AUC and deployed at a validation-optimized decision cut-off
-   (maximizing minority-class F1) rather than the default 0.5. Millisecond
-   CPU inference; gates non-regulatory service complaints away from the
+   `scripts/score_batch.py` / UI upload). The logistic model's
+   regularization is tuned on the validation fold ({l1,l2} × C grid;
+   committed winner **L1, C=2.0**), closing a ~0.20 train/test ROC gap to
+   ~0.15; the generalization gap is tracked per candidate in every
+   committed leaderboard. Champion selected on validation PR-AUC and
+   deployed at a validation-optimized decision cut-off (maximizing
+   minority-class F1) rather than the default 0.5. Millisecond CPU
+   inference; gates non-regulatory service complaints away from the
    LLM path.
 2. **Stage 2 — RAG + LLM regulation labeling.** Retrieval over the
    regulation/policy corpus (NeMo Retriever embeddings; FAISS locally,
@@ -40,12 +44,12 @@ Free-text complaint narrative (truncated to 1,800 chars); retrieved regulation
 passages at stage 2. No demographic or protected-class attributes are used.
 
 ## Performance (committed validation run — docs/complaint_model/metrics.json)
-- **Stage 1 (champion: logistic regression, cut-off 0.788 tuned on
-  validation):** test PR-AUC 0.991 · ROC-AUC 0.797 · F1 0.95 · precision
-  0.97 · recall 0.94 (one-shot held-out test, n=380; 80/10/10 stratified
-  split after the 5% scoring-holdout reserve).
-- **Stage 2 (vs weak labels, stratified n=115):** exact agreement 0.35;
-  **regulation-family agreement 0.54**; macro-F1 0.29. Disagreements
+- **Stage 1 (champion: logistic regression L1/C=2.0, cut-off 0.639 tuned on
+  validation):** test PR-AUC 0.993 · ROC-AUC 0.849 · F1 0.96 · precision
+  0.98 · recall 0.94 · train/test ROC gap 0.15 (one-shot held-out test,
+  n=380; 80/10/10 stratified split after the 5% scoring-holdout reserve).
+- **Stage 2 (vs weak labels, stratified n=115):** exact agreement 0.39;
+  **regulation-family agreement 0.57**; macro-F1 0.35. Disagreements
   concentrate within regulation families (e.g., FCRA accuracy vs FCRA
   reinvestigation) where the weak reference itself is noisy.
 - Full evidence with figures/tables: `docs/complaint_model/` (development

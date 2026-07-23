@@ -474,9 +474,10 @@ def main() -> None:
         fallback="LLM narrative unavailable offline; see metrics tables and figures.",
     )
 
-    lb_headers = ["model", "val_pr_auc", "threshold", "pr_auc", "roc_auc", "f1",
+    lb_headers = ["model", "params", "val_pr_auc", "threshold", "pr_auc",
+                  "train_roc_auc", "roc_auc", "train_test_gap", "f1",
                   "precision", "recall", "accuracy"]
-    lb_rows = [[r[h] for h in lb_headers] for r in s1["leaderboard"]]
+    lb_rows = [[r.get(h, "—") for h in lb_headers] for r in s1["leaderboard"]]
     s2_rows = [[r["label"], r["support"], r["recall"]]
                for r in sorted(s2["per_label"], key=lambda x: -x["support"])]
 
