@@ -201,8 +201,10 @@ def main() -> None:
                             f"{df[col].nunique():,}"])
 
     pipeline_rows = [
-        ["1 · Acquire", "Download from the public CFPB Consumer Complaint Database "
-                        "(streaming parse of the bulk export)", "scripts/fetch_cfpb_complaints.py"],
+        ["1 · Acquire", "Two passes over the public CFPB Consumer Complaint Database: "
+                        "a generic slice of the narrative stream + a targeted pass over "
+                        "service-heavy issues (the non-regulatory pool), with a minority "
+                        "floor at assembly", "scripts/fetch_cfpb_complaints.py · NONREG_TARGET=500"],
         ["2 · Length filter", "Keep narratives ≥ 120 chars; truncate at 1,800 chars",
          "MIN_CHARS=120 · MAX_CHARS=1800"],
         ["3 · Exact dedup", "Hash of whitespace/case-normalized narrative",
@@ -286,14 +288,20 @@ def main() -> None:
         "report. No complaint text is used to fit stage-2 parameters."
     )
 
+    n_all = len(df)
+    n_reg = int(df["is_regulatory"].sum())
+    n_non = n_all - n_reg
     balance_note = (
-        "The dataset is NOT all-regulatory: 3,865 of 4,000 narratives (96.6%) carry "
-        "a weak regulatory label and 135 (3.4%) are NON_REGULATORY service "
-        "complaints. The imbalance is a property of the source: the CFPB database "
-        "predominantly receives complaints with a regulatory nexus, and the "
-        "curation deliberately keeps the natural mix rather than rebalancing, so "
-        "stage-1 metrics reflect production-like prevalence. This is why PR-AUC "
-        "(not accuracy or ROC-AUC) is the primary stage-1 metric, why the "
+        f"The dataset is NOT all-regulatory: {n_reg:,} of {n_all:,} narratives "
+        f"({n_reg / n_all:.1%}) carry a weak regulatory label and {n_non:,} "
+        f"({n_non / n_all:.1%}) are NON_REGULATORY service complaints. The raw "
+        "CFPB stream is far more imbalanced (~3% non-regulatory), so acquisition "
+        "runs a second, TARGETED pass over service-heavy issues ('Managing an "
+        "account', 'Closing an account', ...) and enforces a non-regulatory "
+        "floor at assembly time — giving the minority class enough support for "
+        "stable threshold tuning and minority metrics while keeping every row a "
+        "real CFPB complaint. The mix is still regulatory-dominated, which is "
+        "why PR-AUC (not accuracy) is the primary stage-1 metric, why the "
         "classifiers use class weighting (class_weight='balanced'; "
         "scale_pos_weight), and why the score-distribution and calibration "
         "figures in the development document matter more than headline accuracy."

@@ -28,7 +28,7 @@ reproduce or audit it. All numbers are recomputed from
    remaining 95% first and touched once.
 3. **Four minority-balanced candidates** — logistic regression, XGBoost,
    LightGBM, fine-tuned DistilBERT (class-weighted loss).
-4. **Selection on validation minority PR-AUC** — with a 96.6% majority class,
+4. **Selection on validation minority PR-AUC** — with an 87.5% majority class,
    majority PR-AUC saturates; the minority class is where models differ.
 5. **Validation-optimized decision cut-off** — each candidate's threshold on
    P(regulatory) maximizes minority F1 on the validation fold; the default

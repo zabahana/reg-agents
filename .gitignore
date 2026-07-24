@@ -33,3 +33,4 @@ uv.lock
 .DS_Store
 # Batch-scoring outputs are run artifacts (keep the committed sample only)
 data/scoring/scored_*.csv
+data/complaints/raw_cfpb_dump.json

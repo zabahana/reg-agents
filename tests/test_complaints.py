@@ -67,8 +67,13 @@ def test_stage1_beats_chance_and_classifies():
     if champ["model"] == "logistic_regression":
         assert champ["params"].startswith(("l1", "l2"))
         assert champ["train_test_gap"] < 0.2
+    # Realistic-length narrative (training data is >= 120 chars; very short
+    # texts carry few TF-IDF features and sit near the no-information zone).
     out = C.classify_binary(
-        "A debt collector calls me ten times a day about a debt that is not mine."
+        "A debt collector calls me ten times a day about a debt that is not "
+        "mine. I sent a written dispute and asked for validation of the debt, "
+        "but they continue calling my workplace and threatened to garnish my "
+        "wages and report the account to the credit bureaus."
     )
     assert out["is_regulatory"] is True
     assert 0.0 <= out["probability"] <= 1.0

@@ -16,9 +16,9 @@ Two-stage architecture, deployed as an MCP tool server + A2A agent:
    a stratified 5% scoring holdout for the batch-ingestion layer —
    `scripts/score_batch.py` / UI upload). The logistic model's
    regularization is tuned on the validation fold ({l1,l2} × C grid;
-   committed winner **L1, C=2.0**), closing a ~0.20 train/test ROC gap to
-   ~0.15; the generalization gap is tracked per candidate in every
-   committed leaderboard. Champion selected on validation PR-AUC and
+   committed winner **L1, C=2.0**), and the train/test generalization gap
+   is tracked per candidate in every committed leaderboard (currently
+   ~0.03). Champion selected on validation PR-AUC and
    deployed at a validation-optimized decision cut-off (maximizing
    minority-class F1) rather than the default 0.5. Millisecond CPU
    inference; gates non-regulatory service complaints away from the
@@ -33,7 +33,11 @@ Two-stage architecture, deployed as an MCP tool server + A2A agent:
 
 ## Training / Grounding Data
 4,000 curated, PII-redacted narratives from the public **CFPB Consumer
-Complaint Database** (real data; all 24 categories covered). Curation mirrors
+Complaint Database** (real data; all 24 categories covered). Acquisition is
+two passes: a generic slice of the narrative stream plus a **targeted pass
+over service-heavy issues** with a non-regulatory floor at assembly
+(500 rows, 12.5% — stratified acquisition so the minority class has enough
+support for stable threshold tuning and minority metrics). Curation mirrors
 NeMo Data Curator stages: length filter, exact + near deduplication, PII
 verification, per-issue balanced sampling. Ground truth is **weak
 supervision** derived from the CFPB product/issue taxonomy plus narrative
@@ -44,14 +48,15 @@ Free-text complaint narrative (truncated to 1,800 chars); retrieved regulation
 passages at stage 2. No demographic or protected-class attributes are used.
 
 ## Performance (committed validation run — docs/complaint_model/metrics.json)
-- **Stage 1 (champion: logistic regression L1/C=2.0, cut-off 0.639 tuned on
-  validation):** test PR-AUC 0.993 · ROC-AUC 0.849 · F1 0.96 · precision
-  0.98 · recall 0.94 · train/test ROC gap 0.15 (one-shot held-out test,
+- **Stage 1 (champion: logistic regression L1/C=2.0, cut-off 0.397 tuned on
+  validation):** test PR-AUC 0.992 · ROC-AUC 0.945 · F1 0.95 · precision
+  0.98 · recall 0.92 · train/test ROC gap 0.03 (one-shot held-out test,
   n=380; 80/10/10 stratified split after the 5% scoring-holdout reserve).
-- **Stage 2 (vs weak labels, stratified n=115):** exact agreement 0.39;
-  **regulation-family agreement 0.57**; macro-F1 0.35. Disagreements
+- **Stage 2 (vs weak labels, stratified n=100):** exact agreement 0.28;
+  **regulation-family agreement 0.41**; macro-F1 0.27. Disagreements
   concentrate within regulation families (e.g., FCRA accuracy vs FCRA
-  reinvestigation) where the weak reference itself is noisy.
+  reinvestigation) where the weak reference itself is noisy; the harder,
+  service-heavy 12.5%-minority mix lowered agreement vs earlier runs.
 - Full evidence with figures/tables: `docs/complaint_model/` (development
   document + independent validation report, MD + PDF).
 

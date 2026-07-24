@@ -936,7 +936,8 @@ def main() -> None:
     abstract_text = (
         f"This document records the development of the stage-1 regulatory "
         f"gate for CMPL-REG-24 on {len(df):,} curated CFPB complaint "
-        f"narratives (96.6% regulatory, 3.4% non-regulatory minority). Four "
+        f"narratives ({df.is_regulatory.mean():.1%} regulatory, "
+        f"{1 - df.is_regulatory.mean():.1%} non-regulatory minority). Four "
         f"minority-balanced classifiers — logistic regression, XGBoost, "
         f"LightGBM, and a fine-tuned DistilBERT — were compared under a "
         f"stratified 80/10/10 train/validation/test protocol (applied after "
@@ -1020,7 +1021,8 @@ def main() -> None:
             MDD_SYS,
             "Write the ABSTRACT (120-180 words, one paragraph) for the "
             "document. State the problem (binary regulatory gate on "
-            "consumer-complaint narratives, 96.6% majority class), the "
+            "consumer-complaint narratives with a large regulatory majority "
+            "class), the "
             "protocol (stratified 80/10/10, four minority-balanced "
             "candidates, selection on validation minority PR-AUC, "
             "validation-optimized decision cut-off instead of the default "
@@ -1136,7 +1138,7 @@ membership is committed in [`artifacts/split_indices.json`](artifacts/split_indi
 (DistilBERT). Section 8 ablates this choice.
 
 **Selection metric.** Minority-class PR-AUC on the **validation** fold.
-With 96.6% of complaints regulatory, majority PR-AUC saturates near 1.0 and
+With {df.is_regulatory.mean():.1%} of complaints regulatory, majority PR-AUC saturates near 1.0 and
 accuracy is uninformative; the minority PR-AUC is where candidates actually
 differ (Davis & Goadrich 2006; Saito & Rehmsmeier 2015).
 
@@ -1233,7 +1235,7 @@ read with this band.
 1. **Weak labels.** All metrics measure agreement with CFPB-taxonomy weak
    supervision; a human-adjudicated golden set is a standing validation
    condition before agreement can be read as accuracy.
-2. **Minority support.** 135 minority cases overall (~{n_min_va} per
+2. **Minority support.** {int((1 - df.is_regulatory).sum())} minority cases overall (~{n_min_va} per
    held-out fold under 80/10/10) put wide bands on minority metrics
    (Table 13) and make the tuned cut-off itself an estimate; both are
    re-checked at every retrain, and champion/challenger gaps inside the

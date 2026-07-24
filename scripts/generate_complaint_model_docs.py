@@ -461,8 +461,8 @@ def main() -> None:
         "'logistic_regression' = stage-1 TF-IDF classifiers in the bake-off; "
         "'family_accuracy' = agreement at the regulation-family level (all "
         "FCRA_* variants collapsed to one family, etc.); 'pr_auc' = area under "
-        "the precision-recall curve, the primary stage-1 metric given the ~94% "
-        "positive-class prevalence."
+        "the precision-recall curve, the primary stage-1 metric given the "
+        "regulatory-dominated class prevalence."
     )
     dev_narrative = _narrative(
         DEV_SYS, f"{glossary}\n\nMETRICS (JSON):\n{metrics_str}",
