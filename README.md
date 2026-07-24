@@ -159,7 +159,11 @@ switch to NIM) to get fully synthesized, cited output.
   validation report with accuracy figures and tables, as markdown **and PDF**:
   [`docs/complaint_model/`](docs/complaint_model/README.md). Data is real
   (CFPB Consumer Complaint Database; refresh with
-  `python scripts/fetch_cfpb_complaints.py`). Regenerate docs with
+  `python scripts/fetch_cfpb_complaints.py`). The dataset is versioned: a
+  targeted service-issue acquisition pass (v2) lifted the stage-1 champion's
+  test ROC-AUC **0.849 → 0.945** and closed the train/test gap
+  **0.147 → 0.031** with no model change — recorded in the data profile's
+  update log (§8). Regenerate docs with
   `python scripts/generate_complaint_model_docs.py`.
 - **Publication-grade Model Development Document** — the full research
   protocol for the complaint model's stage-1 gate (EDA, 5% scoring holdout +

@@ -37,7 +37,11 @@ Complaint Database** (real data; all 24 categories covered). Acquisition is
 two passes: a generic slice of the narrative stream plus a **targeted pass
 over service-heavy issues** with a non-regulatory floor at assembly
 (500 rows, 12.5% — stratified acquisition so the minority class has enough
-support for stable threshold tuning and minority metrics). Curation mirrors
+support for stable threshold tuning and minority metrics). **Measured impact
+of this data update (v1 → v2, same champion and regularization grid): test
+ROC-AUC 0.849 → 0.945, train/test ROC gap 0.147 → 0.031** — recorded in the
+data profile's update log (`docs/complaint_model/00_data_profile.md`, §8).
+Curation mirrors
 NeMo Data Curator stages: length filter, exact + near deduplication, PII
 verification, per-issue balanced sampling. Ground truth is **weak
 supervision** derived from the CFPB product/issue taxonomy plus narrative
