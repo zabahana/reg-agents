@@ -99,7 +99,7 @@ Now reachable on the Brev VM's public host (ports you exposed):
 | UI         | 8501 | http://<brev-host>:8501      |
 | Triton     | 8000 | http://<brev-host>:8000/v2/health/ready |
 | Triton metrics | 8002 | http://<brev-host>:8002/metrics |
-| GPU metrics (DCGM) | 9400 | http://<brev-host>:9400/metrics |
+| GPU metrics (DCGM) | 9401 | http://<brev-host>:9401/metrics (9400 inside the compose network; host port shifted — Crusoe VMs run their own exporter on 9400) |
 | Prometheus | 9090 | http://<brev-host>:9090/alerts (guardrails) |
 | Alertmanager | 9093 | http://<brev-host>:9093 (routed alerts) |
 | Grafana    | 3000 | http://<brev-host>:3000  (admin / reg-agents) |

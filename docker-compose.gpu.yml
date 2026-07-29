@@ -47,8 +47,11 @@ services:
   dcgm-exporter:
     image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
     cap_add: [SYS_ADMIN]
+    # Published on 9401: some GPU hosts (Crusoe-backed Brev VMs) already run
+    # a host-level DCGM exporter on 9400. Prometheus scrapes this container
+    # over the compose network at dcgm-exporter:9400 either way.
     ports:
-      - "9400:9400"   # /metrics (DCGM_FI_DEV_*)
+      - "9401:9400"   # /metrics (DCGM_FI_DEV_*)
     deploy:
       resources:
         reservations:
