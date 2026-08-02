@@ -22,6 +22,9 @@ Protocol covered by the document:
   5. Out-of-vocabulary analysis (TF-IDF vocab vs BERT subwords)
   6. Sensitivity analysis on the selected model (threshold sweep, input
      perturbations, class-weight ablation, split-seed stability)
+  7. Leakage audit: split contamination (exact/prefix/cosine duplicates)
+     and weak-label target leakage, with a leakage-free evaluation slice
+     (labels derived only from CFPB issue metadata the model never sees)
 
 Run:
     pip install lightgbm torch transformers  # research extras
@@ -177,11 +180,12 @@ def make_model(name: str, y_tr, weighted: bool = True):
 
     spw = float((y_tr == 0).sum()) / max(float((y_tr == 1).sum()), 1.0)
     if name == "logistic_regression":
-        # L1 regularization: the unpenalized-ish L2/C=4 variant memorizes the
-        # training fold (train ROC ~1.0, ~0.20 train/test gap). Production
-        # tunes {l1,l2} x C on the validation fold (complaints.tune_logistic);
-        # l1, C=2.0 is the committed winner and is mirrored here.
-        return LogisticRegression(max_iter=3000, C=2.0, penalty="l1",
+        # L1 regularization: an unpenalized-ish variant memorizes the training
+        # fold (train ROC ~1.0, large train/test gap). Production tunes
+        # {l1,l2} x C on the validation fold (complaints.tune_logistic);
+        # l1, C=4.0 is the committed winner on the deduplicated v3 dataset
+        # and is mirrored here.
+        return LogisticRegression(max_iter=3000, C=4.0, penalty="l1",
                                   solver="liblinear", random_state=SEED,
                                   class_weight="balanced" if weighted else None)
     if name == "xgboost":
@@ -466,6 +470,70 @@ def seed_stability(name, df, n_seeds=5) -> dict:
                     + [["mean ± std",
                         f"{np.mean(vals):.4f} ± {np.std(vals):.4f}",
                         f"{np.mean(tests):.4f} ± {np.std(tests):.4f}"]]}
+
+
+def leakage_audit(df, x_tr, x_te, y_te, vec, proba_te, thr) -> dict:
+    """Leakage checks: split contamination + weak-label target leakage.
+
+    Two vectors matter for this pipeline:
+    1. **Split contamination** — duplicate or near-duplicate narratives shared
+       between train and test (curation dedups exact hashes, 200-char
+       prefixes, and TF-IDF-cosine near-copies; verified here post-split).
+    2. **Target leakage via weak supervision** — rows whose label comes from a
+       narrative regex embed the labeling rule in the model's input text, so
+       headline agreement partly measures the model re-learning the labeler.
+       Rows labeled from the CFPB issue field — metadata the model never
+       sees — form the leakage-free evaluation slice, reported separately.
+    """
+    import re
+
+    from sklearn.preprocessing import normalize
+
+    def norm(s):
+        return re.sub(r"\s+", " ", s.lower()).strip()
+
+    tr_norm = {norm(t) for t in x_tr}
+    exact = sum(1 for t in x_te if norm(t) in tr_norm)
+    tr_pref = {norm(t)[:200] for t in x_tr}
+    pref = sum(1 for t in x_te if norm(t)[:200] in tr_pref)
+    xt_tr = normalize(vec.transform(list(x_tr)))
+    xt_te = normalize(vec.transform(list(x_te)))
+    max_sim = np.asarray((xt_te @ xt_tr.T).max(axis=1).todense()).ravel()
+    n_cos = int((max_sim >= 0.9).sum())
+    contamination_rows = [
+        ["exact duplicate (normalized hash)", str(exact), "0", "pass" if exact == 0 else "FAIL"],
+        ["near-duplicate (200-char prefix)", str(pref), "0", "pass" if pref == 0 else "FAIL"],
+        ["near-duplicate (TF-IDF cosine ≥ 0.9)", str(n_cos),
+         "≤ 1% of test", "pass" if n_cos <= 0.01 * len(x_te) else "FAIL"],
+    ]
+
+    src_all = np.array([C.label_source(i, n)
+                        for i, n in zip(df["issue"], df["narrative"])])
+    src_te = np.array([C.label_source(df.loc[i, "issue"], df.loc[i, "narrative"])
+                       for i in x_te.index])
+    narrative_share = float((src_all == "narrative").mean())
+    y = np.asarray(y_te)
+    proba_te = np.asarray(proba_te)
+    slice_rows, honest = [], None
+    for name, mask in [("full test set (headline)", np.ones(len(y), bool)),
+                       ("metadata-labeled (leakage-free)", src_te == "metadata"),
+                       ("narrative-regex-labeled", src_te == "narrative")]:
+        yy, pp = y[mask], proba_te[mask]
+        if 0 < yy.sum() < len(yy):
+            s = eval_scores(yy, pp, thr)
+            row = [name, str(int(mask.sum())), f"{yy.mean():.2f}",
+                   f"{s['roc_auc']:.3f}", f"{s['pr_auc_majority']:.3f}",
+                   f"{s['f1_minority']:.3f}", f"{s['balanced_acc']:.3f}"]
+            if name.startswith("metadata"):
+                honest = s | {"n": int(mask.sum())}
+        else:
+            row = [name, str(int(mask.sum())), f"{yy.mean():.2f}",
+                   "— (single class: regulatory by construction)", "—", "—", "—"]
+        slice_rows.append(row)
+    return {"contamination_rows": contamination_rows,
+            "slice_rows": slice_rows,
+            "narrative_share": narrative_share,
+            "honest": honest, "n_cosine": n_cos}
 
 
 def fig_test_curves(test_probs, y_te) -> None:
@@ -816,6 +884,16 @@ def main() -> None:
     print("== split-seed stability (5 seeds) ==")
     seeds = seed_stability(best_sk, df, n_seeds=5)
 
+    print("== leakage audit ==")
+    leak = leakage_audit(df, x_tr, x_te, y_te, vec,
+                         test_probs[champion], champ_thr)
+    for r in leak["contamination_rows"]:
+        print(f"   {r[0]}: {r[1]} ({r[3]})")
+    print(f"   labels decided by narrative regex: {leak['narrative_share']:.1%}")
+    if leak["honest"]:
+        print(f"   leakage-free slice ROC-AUC: {leak['honest']['roc_auc']:.3f} "
+              f"(n={leak['honest']['n']})")
+
     # comparison figure
     names = list(test_scores.keys())
     fig, ax = plt.subplots(figsize=(8.4, 3.8))
@@ -853,7 +931,7 @@ def main() -> None:
     spw = float((np.asarray(y_tr) == 0).sum()) / max(float((np.asarray(y_tr) == 1).sum()), 1.0)
     hp_rows = [
         ["logistic_regression", "TF-IDF 30k, 1-2 gram, sublinear, min_df=2",
-         "L1, C=2.0 (validation-tuned over {l1,l2}×C to close a ~0.20 "
+         "L1, C=4.0 (validation-tuned over {l1,l2}×C to close the "
          "train/test ROC gap), liblinear, class_weight='balanced'",
          f"{fit_secs.get('logistic_regression', '—')}"],
         ["xgboost", "same TF-IDF features",
@@ -880,7 +958,12 @@ def main() -> None:
                "oov": {"corpus_rate": oov["corpus_rate"], "buckets": oov["rows"]},
                "sensitivity_perturbations": sens["perturb_rows"],
                "class_weight_ablation": {"model": best_sk, "rows": ablation_rows},
-               "seed_stability": {"model": best_sk, "rows": seeds["rows"]}}
+               "seed_stability": {"model": best_sk, "rows": seeds["rows"]},
+               "leakage_audit": {
+                   "contamination": leak["contamination_rows"],
+                   "label_provenance_narrative_share": leak["narrative_share"],
+                   "leakage_free_slice": leak["honest"],
+                   "slices": leak["slice_rows"]}}
     with open(os.path.join(OUT_DIR, "results.json"), "w", encoding="utf-8") as fh:
         json.dump(results, fh, indent=2)
 
@@ -1226,15 +1309,47 @@ read with this band.
 
 ![seeds](figures/fig_seed_stability.png)
 
-## 9 · Discussion and model selection decision
+## 9 · Leakage audit
+
+Two leakage vectors are audited at every regeneration of this document.
+
+**Split contamination (Table 14).** Curation deduplicates exact narrative
+hashes, 200-char prefixes, and TF-IDF-cosine near-copies (≥ 0.9) before any
+split, so no test row should be a copy or near-copy of a training row. The
+check runs post-split as a guard (also enforced in
+`tests/test_complaints.py::test_no_cross_split_duplicate_leakage`).
+
+{md_table(["check (test vs train)", "count", "expected", "status"],
+          leak["contamination_rows"])}
+
+**Weak-label target leakage (Table 15).** {leak["narrative_share"]:.0%} of
+rows get their label from a narrative regex (`label_source == 'narrative'`)
+— the labeling rule is embedded in the model's input text, so headline
+agreement on those rows partly measures the model re-learning the labeler,
+not generalization. The honest read is the **metadata-labeled slice**, where
+the label derives only from the CFPB `issue` field, which the model never
+sees. Champion (`{champion}`) at its committed cut-off {champ_thr:.3f}:
+
+{md_table(["test slice", "n", "reg-rate", "ROC-AUC", "PR-AUC (reg)",
+           "F1 (minority)", "balanced acc"], leak["slice_rows"])}
+
+The leakage-free slice is harder (near-balanced classes, no trivially
+learnable rule) and its ROC-AUC is the number to quote when asked how well
+the gate generalizes beyond its own labeling heuristics. This is the
+quantified version of the weak-supervision limitation in §11.
+
+## 10 · Discussion and model selection decision
 
 {discussion}
 
-## 10 · Limitations and monitoring
+## 11 · Limitations and monitoring
 
 1. **Weak labels.** All metrics measure agreement with CFPB-taxonomy weak
    supervision; a human-adjudicated golden set is a standing validation
-   condition before agreement can be read as accuracy.
+   condition before agreement can be read as accuracy. §9 quantifies the
+   target-leakage component of this: {leak["narrative_share"]:.0%} of labels
+   are regex-derived from the narrative itself, and the leakage-free
+   (metadata-labeled) test slice is the honest generalization read.
 2. **Minority support.** {int((1 - df.is_regulatory).sum())} minority cases overall (~{n_min_va} per
    held-out fold under 80/10/10) put wide bands on minority metrics
    (Table 13) and make the tuned cut-off itself an estimate; both are
@@ -1248,13 +1363,13 @@ read with this band.
    costs the most PR-AUC of any tested perturbation; ingestion must deliver
    full narratives.
 
-## 11 · Reproducibility and artifacts
+## 12 · Reproducibility and artifacts
 
-**Table 14 — Artifact manifest** (`docs/model_development/artifacts/`).
+**Table 16 — Artifact manifest** (`docs/model_development/artifacts/`).
 
 {md_table(["artifact", "size", "description"], manifest_rows)}
 
-**Table 15 — Environment.**
+**Table 17 — Environment.**
 
 {md_table(["package", "version"], env_rows)}
 
@@ -1336,10 +1451,21 @@ nondeterminism from parallel kernels.
                     ["seed", "PR-AUC min (val)", "PR-AUC min (test)"], seeds["rows"])
         _figure_page(pdf, "8 · Seed stability (Fig. 8)",
                      f"{FIG_DIR}/fig_seed_stability.png")
-        _text_page(pdf, "9 · Discussion and model selection decision", discussion)
-        _table_page(pdf, "11 · Artifact manifest (Table 14)",
+        _table_page(pdf, "9 · Leakage audit — split contamination (Table 14)",
+                    ["check (test vs train)", "count", "expected", "status"],
+                    leak["contamination_rows"],
+                    "Curation dedups exact hashes, 200-char prefixes and "
+                    "TF-IDF-cosine near-copies before any split.")
+        _table_page(pdf, "9 · Leakage audit — label provenance slices (Table 15)",
+                    ["test slice", "n", "reg-rate", "ROC-AUC", "PR-AUC (reg)",
+                     "F1 (min)", "bal acc"], leak["slice_rows"],
+                    f"{leak['narrative_share']:.0%} of labels are regex-derived "
+                    "from the narrative (weak-supervision target leakage); the "
+                    "metadata-labeled slice is the leakage-free read.")
+        _text_page(pdf, "10 · Discussion and model selection decision", discussion)
+        _table_page(pdf, "12 · Artifact manifest (Table 16)",
                     ["artifact", "size", "description"], manifest_rows)
-        _table_page(pdf, "11 · Environment (Table 15)",
+        _table_page(pdf, "12 · Environment (Table 17)",
                     ["package", "version"], env_rows)
         _text_page(pdf, "Sign-off", SIGNOFF.replace("**", ""))
 

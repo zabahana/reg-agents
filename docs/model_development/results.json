@@ -1,12 +1,12 @@
 {
-  "generated": "2026-07-23 21:44 UTC",
-  "champion": "logistic_regression",
-  "champion_threshold": 0.397,
+  "generated": "2026-07-29 20:42 UTC",
+  "champion": "lightgbm",
+  "champion_threshold": 0.992,
   "thresholds": {
-    "logistic_regression": 0.397,
-    "xgboost": 0.575,
-    "lightgbm": 0.957,
-    "bert_finetuned": 0.401
+    "logistic_regression": 0.491,
+    "xgboost": 0.545,
+    "lightgbm": 0.992,
+    "bert_finetuned": 0.478
   },
   "split": [
     [
@@ -40,197 +40,258 @@
   ],
   "val": {
     "logistic_regression": {
-      "pr_auc_minority": 0.7258,
-      "pr_auc_majority": 0.9948,
-      "roc_auc": 0.9622,
-      "f1_minority": 0.7273,
-      "balanced_acc": 0.923,
-      "brier": 0.0922
+      "pr_auc_minority": 0.6814,
+      "pr_auc_majority": 0.9936,
+      "roc_auc": 0.9535,
+      "f1_minority": 0.6949,
+      "balanced_acc": 0.8911,
+      "brier": 0.072
     },
     "xgboost": {
-      "pr_auc_minority": 0.6269,
-      "pr_auc_majority": 0.9903,
-      "roc_auc": 0.9334,
-      "f1_minority": 0.6789,
-      "balanced_acc": 0.8561,
-      "brier": 0.0693
+      "pr_auc_minority": 0.6294,
+      "pr_auc_majority": 0.988,
+      "roc_auc": 0.9185,
+      "f1_minority": 0.5957,
+      "balanced_acc": 0.7693,
+      "brier": 0.0738
     },
     "lightgbm": {
-      "pr_auc_minority": 0.7238,
-      "pr_auc_majority": 0.9943,
-      "roc_auc": 0.959,
-      "f1_minority": 0.7387,
-      "balanced_acc": 0.9016,
-      "brier": 0.0652
+      "pr_auc_minority": 0.6978,
+      "pr_auc_majority": 0.9934,
+      "roc_auc": 0.9527,
+      "f1_minority": 0.6829,
+      "balanced_acc": 0.8958,
+      "brier": 0.0724
     },
     "bert_finetuned": {
-      "pr_auc_minority": 0.5759,
-      "pr_auc_majority": 0.9876,
-      "roc_auc": 0.9134,
-      "f1_minority": 0.56,
-      "balanced_acc": 0.8552,
-      "brier": 0.124
+      "pr_auc_minority": 0.6355,
+      "pr_auc_majority": 0.992,
+      "roc_auc": 0.9424,
+      "f1_minority": 0.6491,
+      "balanced_acc": 0.8486,
+      "brier": 0.0742
     }
   },
   "test": {
     "logistic_regression": {
-      "pr_auc_minority": 0.642,
-      "pr_auc_majority": 0.992,
-      "roc_auc": 0.9446,
-      "f1_minority": 0.7009,
-      "balanced_acc": 0.8849,
-      "brier": 0.0926
+      "pr_auc_minority": 0.6707,
+      "pr_auc_majority": 0.9904,
+      "roc_auc": 0.9362,
+      "f1_minority": 0.6422,
+      "balanced_acc": 0.8254,
+      "brier": 0.0741
     },
     "xgboost": {
-      "pr_auc_minority": 0.5877,
-      "pr_auc_majority": 0.9896,
-      "roc_auc": 0.931,
-      "f1_minority": 0.6195,
-      "balanced_acc": 0.8194,
-      "brier": 0.0703
+      "pr_auc_minority": 0.6234,
+      "pr_auc_majority": 0.9843,
+      "roc_auc": 0.9073,
+      "f1_minority": 0.5979,
+      "balanced_acc": 0.772,
+      "brier": 0.0746
     },
     "lightgbm": {
-      "pr_auc_minority": 0.732,
-      "pr_auc_majority": 0.9935,
-      "roc_auc": 0.9557,
-      "f1_minority": 0.7027,
-      "balanced_acc": 0.8701,
-      "brier": 0.0681
+      "pr_auc_minority": 0.6908,
+      "pr_auc_majority": 0.99,
+      "roc_auc": 0.9367,
+      "f1_minority": 0.6261,
+      "balanced_acc": 0.8283,
+      "brier": 0.0745
     },
     "bert_finetuned": {
-      "pr_auc_minority": 0.5847,
-      "pr_auc_majority": 0.9858,
-      "roc_auc": 0.9065,
-      "f1_minority": 0.5522,
-      "balanced_acc": 0.8116,
-      "brier": 0.1114
+      "pr_auc_minority": 0.6116,
+      "pr_auc_majority": 0.99,
+      "roc_auc": 0.9317,
+      "f1_minority": 0.5854,
+      "balanced_acc": 0.8163,
+      "brier": 0.088
     }
   },
   "fit_seconds": {
-    "logistic_regression": 0.04,
-    "xgboost": 2.52,
-    "lightgbm": 9.96,
-    "bert_finetuned": 97.9
+    "logistic_regression": 0.06,
+    "xgboost": 2.68,
+    "lightgbm": 10.05,
+    "bert_finetuned": 103.7
   },
   "confusion_matrix_champion_test": [
     [
-      41,
-      7
+      36,
+      12
     ],
     [
-      28,
-      304
+      31,
+      301
     ]
   ],
   "oov": {
-    "corpus_rate": 0.019021783537332703,
+    "corpus_rate": 0.018731943223213164,
     "buckets": [
       [
         "Q1 (lowest OOV)",
         "0.0%",
         "95",
-        "6.32%"
+        "11.58%"
       ],
       [
         "Q2",
-        "0.9%",
-        "95",
-        "5.26%"
+        "0.8%",
+        "94",
+        "6.38%"
       ],
       [
         "Q3",
-        "1.9%",
-        "95",
-        "14.74%"
+        "1.8%",
+        "96",
+        "13.54%"
       ],
       [
         "Q4 (highest OOV)",
-        "5.4%",
+        "4.3%",
         "95",
-        "10.53%"
+        "13.68%"
       ]
     ]
   },
   "sensitivity_perturbations": [
     [
       "baseline (unperturbed)",
-      "0.6420",
+      "0.6908",
       "\u2014"
     ],
     [
       "remove CFPB 'XXXX' PII masks",
-      "0.6480",
-      "+0.0061"
+      "0.6925",
+      "+0.0016"
     ],
     [
       "lowercase + strip punctuation",
-      "0.6420",
+      "0.6908",
       "+0.0000"
     ],
     [
       "keep only first 50% of narrative",
-      "0.3519",
-      "-0.2901"
+      "0.3565",
+      "-0.3344"
     ],
     [
       "randomly drop 10% of tokens",
-      "0.5836",
-      "-0.0584"
+      "0.6622",
+      "-0.0286"
     ]
   ],
   "class_weight_ablation": {
-    "model": "logistic_regression",
+    "model": "lightgbm",
     "rows": [
       [
         "balanced (deployed)",
-        "0.397",
-        0.7258,
-        0.642,
-        0.7009,
-        0.8849
+        "0.992",
+        0.6978,
+        0.6908,
+        0.6261,
+        0.8283
       ],
       [
         "unweighted",
-        "0.738",
-        0.6623,
-        0.6183,
-        0.5957,
-        0.7646
+        "0.949",
+        0.6991,
+        0.6933,
+        0.6122,
+        0.7824
       ]
     ]
   },
   "seed_stability": {
-    "model": "logistic_regression",
+    "model": "lightgbm",
     "rows": [
       [
         "seed 0",
-        "0.7434",
-        "0.6609"
+        "0.6720",
+        "0.7458"
       ],
       [
         "seed 1",
-        "0.7351",
-        "0.6824"
+        "0.7733",
+        "0.6163"
       ],
       [
         "seed 2",
-        "0.6895",
-        "0.6337"
+        "0.8269",
+        "0.5911"
       ],
       [
         "seed 3",
-        "0.6636",
-        "0.6452"
+        "0.7260",
+        "0.6597"
       ],
       [
         "seed 4",
-        "0.7279",
-        "0.7264"
+        "0.7414",
+        "0.6820"
       ],
       [
         "mean \u00b1 std",
-        "0.7119 \u00b1 0.0304",
-        "0.6697 \u00b1 0.0327"
+        "0.7479 \u00b1 0.0513",
+        "0.6590 \u00b1 0.0538"
+      ]
+    ]
+  },
+  "leakage_audit": {
+    "contamination": [
+      [
+        "exact duplicate (normalized hash)",
+        "0",
+        "0",
+        "pass"
+      ],
+      [
+        "near-duplicate (200-char prefix)",
+        "0",
+        "0",
+        "pass"
+      ],
+      [
+        "near-duplicate (TF-IDF cosine \u2265 0.9)",
+        "2",
+        "\u2264 1% of test",
+        "pass"
+      ]
+    ],
+    "label_provenance_narrative_share": 0.7505,
+    "leakage_free_slice": {
+      "pr_auc_minority": 0.9147,
+      "pr_auc_majority": 0.895,
+      "roc_auc": 0.9072,
+      "f1_minority": 0.8182,
+      "balanced_acc": 0.8144,
+      "brier": 0.2694,
+      "n": 81
+    },
+    "slices": [
+      [
+        "full test set (headline)",
+        "380",
+        "0.87",
+        "0.937",
+        "0.990",
+        "0.626",
+        "0.828"
+      ],
+      [
+        "metadata-labeled (leakage-free)",
+        "81",
+        "0.41",
+        "0.907",
+        "0.895",
+        "0.818",
+        "0.814"
+      ],
+      [
+        "narrative-regex-labeled",
+        "299",
+        "1.00",
+        "\u2014 (single class: regulatory by construction)",
+        "\u2014",
+        "\u2014",
+        "\u2014"
       ]
     ]
   }

@@ -126,6 +126,44 @@ def test_score_batch_output_schema():
     assert scored["label"].isin(C.REGULATIONS).all()
 
 
+def test_no_cross_split_duplicate_leakage():
+    """Train/test contamination guard: no exact or near-duplicate narratives
+    may cross the split (curation runs exact, prefix, and cosine dedup)."""
+    import re
+
+    import numpy as np
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.preprocessing import normalize
+
+    df = C.load_complaints()
+    x_tr, _x_va, x_te, *_ = C.split_stage1(df)
+    norm = lambda s: re.sub(r"\s+", " ", s.lower()).strip()  # noqa: E731
+    tr_norm = {norm(t) for t in x_tr}
+    assert not any(norm(t) in tr_norm for t in x_te)
+    tr_pref = {norm(t)[:200] for t in x_tr}
+    assert not any(norm(t)[:200] in tr_pref for t in x_te)
+    # near-duplicates: curation's cosine filter should keep leakage ~zero
+    vec = TfidfVectorizer(max_features=30000, ngram_range=(1, 2),
+                          sublinear_tf=True, min_df=2)
+    xt_tr = normalize(vec.fit_transform(x_tr))
+    xt_te = normalize(vec.transform(x_te))
+    max_sim = np.asarray((xt_te @ xt_tr.T).max(axis=1).todense()).ravel()
+    assert (max_sim >= 0.9).sum() <= max(3, int(0.01 * len(x_te)))
+
+
+def test_label_source_provenance():
+    """label_source mirrors weak_label: narrative-regex rows are always
+    regulatory, and both provenance classes are populated."""
+    df = C.load_complaints()
+    src = df.apply(lambda r: C.label_source(r["issue"], r["narrative"]), axis=1)
+    assert set(src) == {"narrative", "metadata"}
+    # narrative-decided labels are regulatory by construction
+    assert df.loc[src == "narrative", "is_regulatory"].all()
+    # the metadata (leakage-free) slice keeps both classes for evaluation
+    meta_rate = df.loc[src == "metadata", "is_regulatory"].mean()
+    assert 0.0 < meta_rate < 1.0
+
+
 def test_score_batch_accepts_alias_text_column():
     import pandas as pd
 

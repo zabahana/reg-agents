@@ -16,9 +16,9 @@ Two-stage architecture, deployed as an MCP tool server + A2A agent:
    a stratified 5% scoring holdout for the batch-ingestion layer —
    `scripts/score_batch.py` / UI upload). The logistic model's
    regularization is tuned on the validation fold ({l1,l2} × C grid;
-   committed winner **L1, C=2.0**), and the train/test generalization gap
+   committed winner **L1, C=4.0**), and the train/test generalization gap
    is tracked per candidate in every committed leaderboard (currently
-   ~0.03). Champion selected on validation PR-AUC and
+   ~0.06). Champion selected on validation PR-AUC and
    deployed at a validation-optimized decision cut-off (maximizing
    minority-class F1) rather than the default 0.5. Millisecond CPU
    inference; gates non-regulatory service complaints away from the
@@ -38,26 +38,35 @@ two passes: a generic slice of the narrative stream plus a **targeted pass
 over service-heavy issues** with a non-regulatory floor at assembly
 (500 rows, 12.5% — stratified acquisition so the minority class has enough
 support for stable threshold tuning and minority metrics). **Measured impact
-of this data update (v1 → v2, same champion and regularization grid): test
-ROC-AUC 0.849 → 0.945, train/test ROC gap 0.147 → 0.031** — recorded in the
-data profile's update log (`docs/complaint_model/00_data_profile.md`, §8).
-Curation mirrors
-NeMo Data Curator stages: length filter, exact + near deduplication, PII
-verification, per-issue balanced sampling. Ground truth is **weak
-supervision** derived from the CFPB product/issue taxonomy plus narrative
-keyword rules — a documented limitation (see Validation).
+of the data updates (same model family and regularization grid): v1 → v2
+targeted acquisition lifted test ROC-AUC 0.849 → 0.945; v3 added
+TF-IDF-cosine fuzzy dedup after a leakage audit found ~4.5% of test rows
+were near-copies of training rows, settling the honest headline at
+ROC-AUC 0.936 / gap 0.06** — recorded in the data profile's update log
+(`docs/complaint_model/00_data_profile.md`, §8).
+Curation mirrors NeMo Data Curator stages: length filter, exact + prefix +
+cosine-fuzzy deduplication, PII verification, per-issue balanced sampling.
+Ground truth is **weak supervision** derived from the CFPB product/issue
+taxonomy plus narrative keyword rules — a documented limitation quantified
+in the MDD's leakage audit (see Validation).
 
 ## Features / Inputs
 Free-text complaint narrative (truncated to 1,800 chars); retrieved regulation
 passages at stage 2. No demographic or protected-class attributes are used.
 
 ## Performance (committed validation run — docs/complaint_model/metrics.json)
-- **Stage 1 (champion: logistic regression L1/C=2.0, cut-off 0.397 tuned on
-  validation):** test PR-AUC 0.992 · ROC-AUC 0.945 · F1 0.95 · precision
-  0.98 · recall 0.92 · train/test ROC gap 0.03 (one-shot held-out test,
-  n=380; 80/10/10 stratified split after the 5% scoring-holdout reserve).
-- **Stage 2 (vs weak labels, stratified n=100):** exact agreement 0.28;
-  **regulation-family agreement 0.41**; macro-F1 0.27. Disagreements
+- **Stage 1 (champion: logistic regression L1/C=4.0, cut-off 0.491 tuned on
+  validation):** test PR-AUC 0.990 · ROC-AUC 0.936 · F1 0.94 · precision
+  0.96 · recall 0.92 · train/test ROC gap 0.06 (one-shot held-out test,
+  n=380; 80/10/10 stratified split after the 5% scoring-holdout reserve,
+  on the leakage-audited v3 dataset).
+- **Leakage audit (MDD §9):** zero exact/near-duplicate narratives cross the
+  train/test split (cosine fuzzy dedup at curation); ~75% of weak labels are
+  regex-derived from the narrative itself, so the **leakage-free
+  (metadata-labeled) test slice — ROC-AUC ~0.89 on near-balanced classes —**
+  is the honest generalization read.
+- **Stage 2 (vs weak labels, stratified n=101):** exact agreement 0.25;
+  **regulation-family agreement 0.39**; macro-F1 0.25. Disagreements
   concentrate within regulation families (e.g., FCRA accuracy vs FCRA
   reinvestigation) where the weak reference itself is noisy; the harder,
   service-heavy 12.5%-minority mix lowered agreement vs earlier runs.

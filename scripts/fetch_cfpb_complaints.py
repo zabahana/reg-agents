@@ -167,6 +167,43 @@ def _norm(text: str) -> str:
     return _WS.sub(" ", text.lower()).strip()
 
 
+def _drop_near_duplicates(rows: list[dict], threshold: float = 0.90) -> list[dict]:
+    """TF-IDF cosine near-dup filter (Curator analog: FuzzyDuplicates).
+
+    The 200-char prefix signature misses template complaints whose openings
+    differ — those become train/test leakage if both copies survive into the
+    dataset. Greedy pass: keep a row only if its max cosine similarity to an
+    already-kept row is below the threshold. Blockwise so the similarity
+    matrix never materializes densely.
+    """
+    import numpy as np
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.preprocessing import normalize
+
+    if len(rows) < 2:
+        return rows
+    vec = TfidfVectorizer(max_features=30000, ngram_range=(1, 2),
+                          sublinear_tf=True, min_df=2)
+    xt = normalize(vec.fit_transform([r["narrative"] for r in rows]))
+
+    keep_mask = np.ones(len(rows), dtype=bool)
+    block = 512
+    for start in range(0, len(rows), block):
+        stop = min(start + block, len(rows))
+        sims = (xt[start:stop] @ xt[:stop].T).toarray()
+        for i in range(start, stop):
+            if not keep_mask[i]:
+                continue
+            row = sims[i - start, :i]
+            row[~keep_mask[:i]] = 0.0
+            if row.size and row.max() >= threshold:
+                keep_mask[i] = False
+    kept = [r for r, k in zip(rows, keep_mask) if k]
+    print(f"   cosine near-dup filter (>= {threshold}): "
+          f"{len(rows)} -> {len(kept)} (dropped {len(rows) - len(kept)})")
+    return kept
+
+
 def curate(records: list[dict]) -> list[dict]:
     """NeMo-Curator-style pass: filter -> exact dedup -> near dedup -> truncate."""
     import random
@@ -174,7 +211,7 @@ def curate(records: list[dict]) -> list[dict]:
     rng = random.Random(SEED)
     seen_exact: set[str] = set()
     seen_near: set[str] = set()
-    by_issue: dict[str, list[dict]] = defaultdict(list)
+    uniques: list[dict] = []
     stats = {"in": len(records), "len": 0, "exact": 0, "near": 0}
 
     rng.shuffle(records)
@@ -194,7 +231,7 @@ def curate(records: list[dict]) -> list[dict]:
             stats["near"] += 1
             continue
         seen_near.add(near_key)
-        row = {
+        uniques.append({
             "complaint_id": src.get("complaint_id", ""),
             "date_received": (src.get("date_received") or "")[:10],
             "product": src.get("product", ""),
@@ -205,7 +242,14 @@ def curate(records: list[dict]) -> list[dict]:
             "state": src.get("state") or "",
             "tags": src.get("tags") or "",
             "narrative": text[:MAX_CHARS],
-        }
+        })
+
+    # Fuzzy dedup on the whole unique pool — template complaints that differ
+    # in their first 200 chars would otherwise leak across the future
+    # train/validation/test split as near-copies.
+    uniques = _drop_near_duplicates(uniques)
+    by_issue: dict[str, list[dict]] = defaultdict(list)
+    for row in uniques:
         by_issue[row["issue"]].append(row)
 
     # Balanced pool: cap each issue first (fights the credit-reporting skew),

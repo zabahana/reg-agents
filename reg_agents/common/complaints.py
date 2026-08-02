@@ -256,6 +256,29 @@ def weak_label(issue: str, narrative: str) -> str:
     return NON_REGULATORY if not issue_l else "UDAAP"
 
 
+def label_source(issue: str, narrative: str) -> str:
+    """Provenance of a row's weak label: 'narrative' or 'metadata'.
+
+    Mirrors weak_label()'s decision path. Rows labeled by a narrative regex
+    have their target embedded in the model's input text (weak-supervision
+    target leakage — the model can re-learn the labeling rule), while
+    metadata-labeled rows derive the target from the CFPB issue field, which
+    the model never sees. Evaluation on the metadata slice is therefore the
+    leakage-free read of generalization; the MDD's leakage audit reports both.
+    """
+    text = (narrative or "").lower()
+    if any(re.search(p, text) for p, _ in _KEYWORD_OVERRIDES):
+        return "narrative"
+    issue_l = (issue or "").lower()
+    if any(issue_l.startswith(p) for p, _ in _ISSUE_MAP):
+        return "metadata"
+    if any(issue_l.startswith(s) for s in _SERVICE_ISSUES):
+        if re.search(r"unauthorized|stolen|fraud|scam|did not make"
+                     r"|overdraft|fee|hold|availability", text):
+            return "narrative"
+    return "metadata"
+
+
 @lru_cache
 def load_complaints(csv_path: Optional[str] = None) -> pd.DataFrame:
     df = pd.read_csv(csv_path or _DATA_CSV)

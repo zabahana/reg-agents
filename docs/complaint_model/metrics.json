@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-23 21:44 UTC",
+  "generated": "2026-07-29 20:43 UTC",
   "llm": {
     "provider": "nim",
     "model": "meta/llama-3.1-8b-instruct"
@@ -18,76 +18,76 @@
     "leaderboard": [
       {
         "model": "logistic_regression",
-        "params": "l1, C=2.0",
-        "val_pr_auc": 0.9948,
-        "threshold": 0.397,
-        "pr_auc": 0.992,
-        "train_roc_auc": 0.9751,
-        "roc_auc": 0.9446,
-        "train_test_gap": 0.0305,
-        "f1": 0.9456,
-        "precision": 0.9775,
-        "recall": 0.9157,
-        "accuracy": 0.9079
+        "params": "l1, C=4.0",
+        "val_pr_auc": 0.9936,
+        "threshold": 0.491,
+        "pr_auc": 0.9904,
+        "train_roc_auc": 0.9963,
+        "roc_auc": 0.9362,
+        "train_test_gap": 0.0601,
+        "f1": 0.9401,
+        "precision": 0.9592,
+        "recall": 0.9217,
+        "accuracy": 0.8974
       },
       {
         "model": "xgboost",
         "params": "n_estimators=300, max_depth=6, lr=0.1",
-        "val_pr_auc": 0.9903,
-        "threshold": 0.575,
-        "pr_auc": 0.9896,
+        "val_pr_auc": 0.988,
+        "threshold": 0.545,
+        "pr_auc": 0.9843,
         "train_roc_auc": 1.0,
-        "roc_auc": 0.931,
-        "train_test_gap": 0.069,
-        "f1": 0.9335,
-        "precision": 0.9587,
-        "recall": 0.9096,
-        "accuracy": 0.8868
+        "roc_auc": 0.9073,
+        "train_test_gap": 0.0927,
+        "f1": 0.9412,
+        "precision": 0.9426,
+        "recall": 0.9398,
+        "accuracy": 0.8974
       }
     ],
     "confusion_matrix": [
       [
-        41,
-        7
+        35,
+        13
       ],
       [
-        28,
-        304
+        26,
+        306
       ]
     ]
   },
   "stage2": {
-    "n": 100,
+    "n": 101,
     "mode": "rag_llm",
-    "accuracy": 0.28,
-    "family_accuracy": 0.41,
-    "macro_f1": 0.2677,
-    "weighted_f1": 0.2345,
+    "accuracy": 0.2475,
+    "family_accuracy": 0.3861,
+    "macro_f1": 0.2516,
+    "weighted_f1": 0.2115,
     "per_label": [
       {
         "label": "BSA_AML",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.6
       },
       {
         "label": "ECOA_ADVERSE_ACTION",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.0
       },
       {
         "label": "ECOA_DISCRIMINATION",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.0
       },
       {
         "label": "FCRA_ACCURACY",
         "support": 5,
-        "recall": 0.2
+        "recall": 0.6
       },
       {
         "label": "FCRA_INVESTIGATION",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.0
       },
       {
         "label": "FCRA_PERMISSIBLE_PURPOSE",
@@ -96,13 +96,13 @@
       },
       {
         "label": "FDCPA_COMMUNICATION",
-        "support": 1,
-        "recall": 1.0
+        "support": 3,
+        "recall": 0.333
       },
       {
         "label": "FDCPA_DEBT_VALIDATION",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.4
       },
       {
         "label": "FDCPA_THREATS",
@@ -112,7 +112,7 @@
       {
         "label": "GLBA_PRIVACY",
         "support": 5,
-        "recall": 0.0
+        "recall": 0.2
       },
       {
         "label": "LOAN_SERVICING",
@@ -126,23 +126,23 @@
       },
       {
         "label": "REG_E_ERROR_RESOLUTION",
-        "support": 3,
-        "recall": 0.333
+        "support": 2,
+        "recall": 0.0
       },
       {
         "label": "REG_E_UNAUTHORIZED",
         "support": 5,
-        "recall": 0.6
+        "recall": 0.4
       },
       {
         "label": "REG_Z_BILLING",
-        "support": 5,
-        "recall": 0.4
+        "support": 4,
+        "recall": 0.25
       },
       {
         "label": "REG_Z_DISCLOSURE",
         "support": 5,
-        "recall": 0.0
+        "recall": 0.2
       },
       {
         "label": "RESPA_LOSS_MITIGATION",
@@ -157,7 +157,12 @@
       {
         "label": "SALES_PRACTICES",
         "support": 5,
-        "recall": 0.6
+        "recall": 1.0
+      },
+      {
+        "label": "SCRA_MLA",
+        "support": 1,
+        "recall": 1.0
       },
       {
         "label": "TILA_ORIGINATION",
@@ -172,7 +177,7 @@
       {
         "label": "UDAAP",
         "support": 5,
-        "recall": 0.0
+        "recall": 0.2
       }
     ]
   }
