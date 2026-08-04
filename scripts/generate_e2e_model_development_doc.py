@@ -106,22 +106,27 @@ def _text_pages(pdf, heading: str, body: str, first_lines: int = 42):
         plt.close(fig)
 
 
-def _shorten(text, max_len: int) -> str:
+def _clean_cell(text) -> str:
+    """Normalize long/awkward cell values before layout."""
     text = str(text)
-    # compact common long hyperparameter strings for PDF cells
     text = (text.replace("n_estimators=", "n=")
                 .replace("max_depth=", "d=")
                 .replace("learning_rate=", "lr=")
                 .replace(", lr=0.1", ", lr=.1"))
-    if len(text) <= max_len:
-        return text
-    return text[: max_len - 1] + "…"
+    # collapse the long single-class placeholder from leakage slices
+    if "single class" in text.lower() or text.startswith("— ("):
+        return "n/a"
+    if text.startswith("—"):
+        return "—"
+    return text
 
 
 def _table_page(pdf, heading: str, headers: Sequence[str], rows: Sequence,
                 caption: str = "", col_widths: Optional[Sequence[float]] = None,
                 lead_in: str = ""):
-    """Table that stays inside page margins; optional lead-in prose above it."""
+    """Custom table drawer: text is wrapped strictly inside each cell."""
+    from matplotlib.patches import FancyBboxPatch
+
     fig = plt.figure(figsize=PAGE)
     fig.text(MARGIN, 0.945, heading, fontsize=12, weight="bold", color=INK)
     fig.lines.append(plt.Line2D([MARGIN, 1 - MARGIN], [0.93, 0.93],
@@ -135,7 +140,6 @@ def _table_page(pdf, heading: str, headers: Sequence[str], rows: Sequence,
             lead_lines.append("")
         while lead_lines and lead_lines[-1] == "":
             lead_lines.pop()
-        # at most ~12 lines of lead-in so the table still fits
         lead_lines = lead_lines[:12]
         fig.text(MARGIN, y, "\n".join(lead_lines), fontsize=9, va="top",
                  family="serif", color=INK, linespacing=1.4)
@@ -150,42 +154,109 @@ def _table_page(pdf, heading: str, headers: Sequence[str], rows: Sequence,
     n_cols = len(headers)
     if col_widths is None:
         col_widths = [1.0 / n_cols] * n_cols
-    # character budget per column from fractional width (~88 chars usable)
-    char_budgets = [max(4, int(w * 88)) for w in col_widths]
-
-    cell_headers = [_shorten(h, b) for h, b in zip(headers, char_budgets)]
-    cell_rows = [
-        [_shorten(c, b) for c, b in zip(row, char_budgets)] for row in rows
+    # usable figure width in inches and approx chars/inch at 7pt
+    usable_in = PAGE[0] * (1 - 2 * MARGIN)
+    # ~14 chars/inch at 7pt; leave a small pad so glyphs never touch borders.
+    chars_per_in = 14.0
+    pad_chars = 2
+    char_budgets = [
+        max(4, int(w * usable_in * chars_per_in) - pad_chars)
+        for w in col_widths
     ]
 
-    # row height: single-line cells; scale by count
-    n_rows = len(cell_rows) + 1
-    row_h = min(0.045, 0.70 / max(n_rows, 1))
-    table_h = row_h * n_rows + 0.01
-    ax = fig.add_axes([MARGIN, max(0.06, y - table_h - 0.02),
-                       1 - 2 * MARGIN, table_h])
-    ax.axis("off")
+    def _is_atomic(val: str) -> bool:
+        """Numbers, short tokens, and status words must never soft-wrap."""
+        v = val.strip()
+        if len(v) <= 12:
+            return True
+        compact = (v.replace(".", "").replace("%", "").replace(",", "")
+                    .replace("—", "").replace("-", "").replace("+", "")
+                    .replace("≤", "").replace("≥", "").replace("/", ""))
+        return compact.isdigit() or compact.replace(" ", "").isalnum() and " " not in v
 
-    tbl = ax.table(
-        cellText=cell_rows,
-        colLabels=cell_headers,
-        loc="upper center",
-        cellLoc="center",
-        colColours=["#e8f2d8"] * n_cols,
-        colWidths=list(col_widths),
-    )
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(7.0 if n_cols >= 7 else 7.8)
-    tbl.scale(1.0, 1.55)
+    def wrap_cell(val, budget):
+        val = _clean_cell(val)
+        # Never split atomic cells (metrics, short ids). If they exceed the
+        # budget, keep them on one line — column widths are sized for this.
+        if _is_atomic(val) or len(val) <= budget:
+            return [val]
+        # Prefer breaks at spaces/commas only — never mid-token.
+        lines = textwrap.wrap(
+            val, width=budget, break_long_words=False, break_on_hyphens=False
+        ) or [val]
+        if not lines:
+            return [val]
+        # If a single token still exceeds budget, truncate with ellipsis
+        # rather than spilling across the border.
+        out = []
+        for ln in lines[:3]:
+            if len(ln) > budget:
+                out.append(ln[: max(1, budget - 1)] + "…")
+            else:
+                out.append(ln)
+        return out
 
-    for (r, _c), cell in tbl.get_celld().items():
-        cell.set_edgecolor("#bdbdbd")
-        cell.set_linewidth(0.5)
-        cell.set_text_props(wrap=True)
-        if r == 0:
-            cell.set_text_props(weight="bold", color=INK, wrap=True)
-        elif r % 2 == 0:
-            cell.set_facecolor("#f7f7f7")
+    grid = [  # list of rows; each cell is a list of lines
+        [wrap_cell(h, b) for h, b in zip(headers, char_budgets)]
+    ]
+    for row in rows:
+        grid.append([wrap_cell(c, b) for c, b in zip(row, char_budgets)])
+
+    line_h = 0.0145          # figure-fraction height per text line
+    pad_v = 0.008            # vertical padding inside a cell
+    row_heights = [
+        max(len(cell) for cell in row) * line_h + pad_v
+        for row in grid
+    ]
+    table_h = sum(row_heights)
+    # if the table would spill below the margin, shrink line height slightly
+    max_h = y - 0.06
+    if table_h > max_h:
+        scale = max_h / table_h
+        line_h *= scale
+        pad_v *= scale
+        row_heights = [
+            max(len(cell) for cell in row) * line_h + pad_v
+            for row in grid
+        ]
+        table_h = sum(row_heights)
+
+    # draw in figure coordinates
+    x0 = MARGIN
+    table_w = 1 - 2 * MARGIN
+    y_cursor = y
+
+    for r_idx, (row, rh) in enumerate(zip(grid, row_heights)):
+        x = x0
+        face = "#e8f2d8" if r_idx == 0 else ("#f7f7f7" if r_idx % 2 == 0 else "#ffffff")
+        for c_idx, (cell_lines, cw) in enumerate(zip(row, col_widths)):
+            cell_w = cw * table_w
+            # cell background + border
+            fig.patches.append(FancyBboxPatch(
+                (x, y_cursor - rh), cell_w, rh,
+                boxstyle="square,pad=0",
+                facecolor=face, edgecolor="#bdbdbd", linewidth=0.5,
+                transform=fig.transFigure, clip_on=False,
+            ))
+            # text block centered vertically, left-padded
+            text = "\n".join(cell_lines)
+            weight = "bold" if r_idx == 0 else "normal"
+            # numeric-looking cells center; others left
+            raw = _clean_cell(
+                headers[c_idx] if r_idx == 0 else rows[r_idx - 1][c_idx]
+            )
+            numeric = raw.replace(".", "").replace("%", "").replace("—", "").replace("-", "").replace("+", "").isdigit() or raw in {"—", "n/a", "pass", "FAIL"}
+            ha = "center" if numeric or r_idx == 0 else "left"
+            # Keep a clear inset from both vertical borders.
+            inset = 0.008
+            tx = x + cell_w / 2 if ha == "center" else x + inset
+            fig.text(tx, y_cursor - rh / 2, text,
+                     fontsize=6.8 if n_cols >= 7 else 7.4,
+                     ha=ha, va="center", color=INK, weight=weight,
+                     linespacing=1.25, family="sans-serif",
+                     clip_on=True, transform=fig.transFigure)
+            x += cell_w
+        y_cursor -= rh
 
     pdf.savefig(fig)
     plt.close(fig)
@@ -383,83 +454,92 @@ Overall disposition: Approve with Conditions. The conditions are the golden set,
         p = p.replace("learning_rate=", "lr=").replace(", lr=0.1", ", lr=.1")
         return p
 
+    def _f3(x):
+        try:
+            return f"{float(x):.3f}"
+        except (TypeError, ValueError):
+            return x
+
     prod_lb_rows = [
         [r["model"].replace("logistic_regression", "logreg"),
          _params_short(r.get("params", "")),
-         r["threshold"], r["pr_auc"], r["roc_auc"],
-         r.get("train_test_gap", ""), r["f1"], r["precision"], r["recall"]]
+         _f3(r["threshold"]), _f3(r["pr_auc"]), _f3(r["roc_auc"]),
+         _f3(r.get("train_test_gap", "")), _f3(r["f1"]),
+         _f3(r["precision"]), _f3(r["recall"])]
         for r in lb
     ]
     research_rows = []
     for name, t in research.items():
         research_rows.append([
             name.replace("logistic_regression", "logreg").replace("bert_finetuned", "distilbert"),
-            mdd.get("thresholds", {}).get(name, "—"),
-            t.get("pr_auc_minority", "—"), t.get("roc_auc", "—"),
-            t.get("f1_minority", "—"), t.get("balanced_acc", "—"),
+            _f3(mdd.get("thresholds", {}).get(name, "—")),
+            _f3(t.get("pr_auc_minority", "—")), _f3(t.get("roc_auc", "—")),
+            _f3(t.get("f1_minority", "—")), _f3(t.get("balanced_acc", "—")),
         ])
     contam = leak.get("contamination", [])
-    # shorten contamination labels for PDF
-    contam_pdf = [[c[0].replace("near-duplicate ", "near-dup ").replace("(normalized hash)", "(hash)"),
-                   c[1], c[2], c[3]] for c in contam]
+    # shorten contamination labels for PDF so they wrap cleanly inside cells
+    _contam_map = {
+        "exact duplicate (normalized hash)": "exact dup (hash)",
+        "near-duplicate (200-char prefix)": "near-dup (prefix)",
+        "near-duplicate (TF-IDF cosine ≥ 0.9)": "near-dup (cosine≥0.9)",
+    }
+    contam_pdf = []
+    for c in contam:
+        label = _contam_map.get(c[0], c[0]
+                                .replace("near-duplicate ", "near-dup ")
+                                .replace("(normalized hash)", "(hash)"))
+        expected = str(c[2]).replace("≤ 1% of test", "≤1% test")
+        contam_pdf.append([label, c[1], expected, c[3]])
     slice_rows = leak.get("slices", [])
     slice_pdf = []
     for r in slice_rows:
         name = (r[0].replace("metadata-labeled (leakage-free)", "metadata (leak-free)")
                 .replace("narrative-regex-labeled", "narrative-regex")
                 .replace("full test set (headline)", "full test (headline)"))
-        slice_pdf.append([name, r[1], r[2], r[3], r[4], r[5], r[6]])
+        cells = [name, r[1], r[2], r[3], r[4], r[5], r[6]]
+        # replace long single-class placeholders so PDF cells stay compact
+        cells = [
+            "n/a" if isinstance(c, str) and ("single class" in c.lower() or c.startswith("— ("))
+            else ("—" if isinstance(c, str) and c.startswith("—") else c)
+            for c in cells
+        ]
+        slice_pdf.append(cells)
+
+    def _judge_row(label, key):
+        p = jp.get(key, {})
+        return [label, p.get("n"), p.get("agree"), p.get("disagree"),
+                f"{p.get('rate', 0):.1%}", _f3(p.get("kappa"))]
 
     judge_rows = [
-        ["NIM vs LR gate",
-         jp.get("nim_vs_gate", {}).get("n"),
-         jp.get("nim_vs_gate", {}).get("agree"),
-         jp.get("nim_vs_gate", {}).get("disagree"),
-         f"{jp.get('nim_vs_gate', {}).get('rate', 0):.1%}",
-         jp.get("nim_vs_gate", {}).get("kappa")],
-        ["OpenAI vs LR gate",
-         jp.get("openai_vs_gate", {}).get("n"),
-         jp.get("openai_vs_gate", {}).get("agree"),
-         jp.get("openai_vs_gate", {}).get("disagree"),
-         f"{jp.get('openai_vs_gate', {}).get('rate', 0):.1%}",
-         jp.get("openai_vs_gate", {}).get("kappa")],
-        ["NIM vs OpenAI",
-         jp.get("nim_vs_openai", {}).get("n"),
-         jp.get("nim_vs_openai", {}).get("agree"),
-         jp.get("nim_vs_openai", {}).get("disagree"),
-         f"{jp.get('nim_vs_openai', {}).get('rate', 0):.1%}",
-         jp.get("nim_vs_openai", {}).get("kappa")],
-        ["LR gate vs weak label",
-         jp.get("gate_vs_weak", {}).get("n"),
-         jp.get("gate_vs_weak", {}).get("agree"),
-         jp.get("gate_vs_weak", {}).get("disagree"),
-         f"{jp.get('gate_vs_weak', {}).get('rate', 0):.1%}",
-         jp.get("gate_vs_weak", {}).get("kappa")],
+        _judge_row("NIM vs LR", "nim_vs_gate"),
+        _judge_row("OpenAI vs LR", "openai_vs_gate"),
+        _judge_row("NIM vs OpenAI", "nim_vs_openai"),
+        _judge_row("LR vs weak", "gate_vs_weak"),
     ]
     dpo_rows = [
         ["LR gate",
-         dpo_gate.get("threshold", champ.get("threshold")),
-         dpo_gate.get("roc_auc", champ.get("roc_auc")),
-         dpo_gate.get("pr_auc", champ.get("pr_auc")),
-         dpo_gate.get("f1", champ.get("f1")),
-         dpo_gate.get("leakage_free_roc", "—")],
+         _f3(dpo_gate.get("threshold", champ.get("threshold"))),
+         _f3(dpo_gate.get("roc_auc", champ.get("roc_auc"))),
+         _f3(dpo_gate.get("pr_auc", champ.get("pr_auc"))),
+         _f3(dpo_gate.get("f1", champ.get("f1"))),
+         _f3(dpo_gate.get("leakage_free_roc", "—"))],
         ["DPO policy",
-         dpo_pol.get("threshold", "—"),
-         dpo_pol.get("roc_auc", "—"),
-         dpo_pol.get("pr_auc", "—"),
-         dpo_pol.get("f1", "—"),
-         dpo_pol.get("leakage_free_roc", "—")],
+         _f3(dpo_pol.get("threshold", "—")),
+         _f3(dpo_pol.get("roc_auc", "—")),
+         _f3(dpo_pol.get("pr_auc", "—")),
+         _f3(dpo_pol.get("f1", "—")),
+         _f3(dpo_pol.get("leakage_free_roc", "—"))],
     ]
     s2_top = sorted(s2.get("per_label", []), key=lambda r: -r.get("recall", 0))[:10]
     s2_rows = [[r["label"], r["support"], f"{r['recall']:.2f}"] for r in s2_top]
 
     disposition_rows = [
-        ["Stage-1 LR gate", "Approve", "Millisecond CPU; monitor gap"],
-        ["Stage-2 RAG+LLM", "Approve w/ conditions", "Golden set required"],
-        ["Dual-judge panel", "Approve as overlay", "Adjudication queue"],
-        ["DPO/RLAIF policy", "Challenger — hold", "Do not promote yet"],
+        ["Stage-1 LR gate", "Approve", "ms CPU; monitor gap"],
+        ["Stage-2 RAG+LLM", "Approve*", "Golden set required"],
+        ["Dual-judge panel", "Overlay", "Adjudication queue"],
+        ["DPO/RLAIF policy", "Hold", "Do not promote yet"],
         ["Batch ingestion", "Approve", "Holdout + file upload"],
-        ["Overall", "Approve w/ conditions", "SR 11-7 effective challenge"],
+        ["Overall", "Approve*", "SR 11-7 effective challenge"],
     ]
 
     # ---------- markdown (rich prose + figures + tables) ----------
@@ -729,17 +809,18 @@ python scripts/score_batch.py --limit 25
                     ["split", "n", "reg", "non-reg", "rate"],
                     split_rows, col_widths=[0.40, 0.12, 0.16, 0.18, 0.14])
         _text_pages(pdf, "4 · Stage 1 — the regulatory gate", sec4)
+        # Wide numeric columns so 0.xxx values never wrap; params get the remainder.
         _table_page(pdf, "Table 3 · Production stage-1 leaderboard",
                     ["model", "params", "thr", "PR", "ROC", "gap", "F1", "prec", "rec"],
                     prod_lb_rows,
                     caption="Champion selected on validation PR-AUC; cut-off tuned on validation — never the default 0.5.",
-                    col_widths=[0.12, 0.22, 0.09, 0.10, 0.10, 0.09, 0.09, 0.10, 0.09],
+                    col_widths=[0.12, 0.18, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10],
                     lead_in="Production ships the L1 logistic gate for latency and inspectability. XGBoost is retained as a challenger on the same split and cut-off protocol.")
         _table_page(pdf, "Table 4 · Research bake-off (held-out test)",
                     ["model", "thr", "PR-min", "ROC", "F1-min", "bAcc"],
                     research_rows,
                     caption=f"Research champion by validation minority PR-AUC: {research_champ} @ {research_thr}. Not promoted on latency economics.",
-                    col_widths=[0.22, 0.12, 0.16, 0.16, 0.16, 0.18])
+                    col_widths=[0.24, 0.12, 0.16, 0.16, 0.16, 0.16])
         _figure_page(pdf, "Figure 6 · Stage-1 ROC and PR curves",
                      os.path.join(FIG, "stage1_curves.png"),
                      "Production gate on the held-out test fold.")
@@ -760,9 +841,9 @@ python scripts/score_batch.py --limit 25
                      "Reliability view for the production gate.")
         _text_pages(pdf, "5 · Leakage audit", sec5)
         _table_page(pdf, "Table 5 · Split contamination checks",
-                    ["check (test vs train)", "count", "expected", "status"],
+                    ["check", "count", "expected", "status"],
                     contam_pdf,
-                    col_widths=[0.50, 0.12, 0.22, 0.16],
+                    col_widths=[0.46, 0.14, 0.22, 0.18],
                     lead_in="Exact, prefix, and cosine near-duplicates are removed at curation and re-checked after the split. The unit test fails the build if the contract breaks.")
         _table_page(pdf, "Table 6 · Evaluation slices",
                     ["slice", "n", "reg", "ROC", "PR", "F1min", "bAcc"],
