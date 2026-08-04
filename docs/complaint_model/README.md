@@ -23,6 +23,7 @@ taxonomy** (UDAAP, sales practices, FCRA, FDCPA, Reg E, Reg Z, RESPA, BSA/AML,
 | Data Profile & Processing | [`00_data_profile.md`](00_data_profile.md) | [`00_data_profile.pdf`](00_data_profile.pdf) |
 | Model Development Document (1st line) | [`01_model_development_document.md`](01_model_development_document.md) | [`01_model_development_document.pdf`](01_model_development_document.pdf) |
 | Independent Validation Report (2nd line) | [`02_validation_report.md`](02_validation_report.md) | [`02_validation_report.pdf`](02_validation_report.pdf) |
+| Dual-Judge Agreement Study (NIM + OpenAI) | [`03_judge_agreement.md`](03_judge_agreement.md) | — |
 
 Both include accuracy **figures** (ROC/PR curves, confusion matrix, per-category
 recall, label distribution) and **tables** (bake-off leaderboard, per-category
@@ -51,6 +52,7 @@ python scripts/fetch_cfpb_complaints.py             # refresh data (network)
 python scripts/generate_complaint_data_profile.py   # data profile + quality checks
 python scripts/generate_complaint_model_docs.py     # retrain + re-evaluate + re-render
 python scripts/generate_complaint_model_docs.py --no-llm   # offline (keyword fallback)
+python scripts/judge_agreement_study.py             # dual-judge study (NIM + OpenAI keys)
 ```
 
 ## Serving

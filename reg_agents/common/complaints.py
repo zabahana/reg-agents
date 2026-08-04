@@ -504,6 +504,62 @@ def classify_binary(text: str) -> Dict:
 
 
 # --------------------------------------------------------------------------- #
+# LLM judge panel: NIM + OpenAI as independent stage-1 judges
+# --------------------------------------------------------------------------- #
+_JUDGE_SYS = (
+    "You are an independent compliance judge at a bank. Decide whether a "
+    "consumer complaint is REGULATORY (it implicates a specific consumer-"
+    "protection regulation such as FCRA, FDCPA, Reg E, Reg Z, RESPA, ECOA, "
+    "TISA/Reg DD, Reg CC, GLBA, SCRA/MLA, BSA/AML, UDAAP) or NON-REGULATORY "
+    "(a routine customer-service matter: account access, general servicing "
+    "friction, preferences, or complaints with no specific regulatory hook).\n"
+    "Judge only from the complaint text. Reply with STRICT JSON only:\n"
+    '{"is_regulatory": true|false, "confidence": 0.0-1.0, '
+    '"reason": "<one sentence>"}'
+)
+
+
+def llm_judge_regulatory(text: str, provider: str) -> Dict:
+    """One judge's stage-1 verdict. First-class call — no keyword fallback;
+
+    errors propagate to the caller (the agreement study records them as
+    abstentions instead of silently substituting a heuristic verdict).
+    """
+    from reg_agents.common import llm
+
+    raw = llm.system_user(
+        _JUDGE_SYS,
+        f"COMPLAINT:\n{text[:1800]}\n\nJSON VERDICT:",
+        temperature=0.0, max_tokens=150, provider=provider,
+    )
+    m = re.search(r"\{.*\}", raw, re.S)
+    parsed = json.loads(m.group(0)) if m else {}
+    verdict = parsed.get("is_regulatory")
+    if not isinstance(verdict, bool):
+        raise ValueError(f"judge {provider} returned no boolean verdict: {raw[:120]!r}")
+    return {
+        "provider": provider,
+        "is_regulatory": verdict,
+        "confidence": float(parsed.get("confidence", 0.5)),
+        "reason": str(parsed.get("reason", "")).strip(),
+    }
+
+
+def judge_panel(text: str) -> Dict:
+    """Both configured judges (NIM + OpenAI) on one complaint, plus the
+    logistic-regression gate's verdict, for side-by-side comparison."""
+    from reg_agents.common import llm
+
+    out: Dict = {"gate": classify_binary(text), "judges": {}}
+    for provider in llm.available_judges():
+        try:
+            out["judges"][provider] = llm_judge_regulatory(text, provider)
+        except Exception as exc:  # noqa: BLE001 - a judge may be unreachable
+            out["judges"][provider] = {"provider": provider, "error": str(exc)[:200]}
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # Stage 2: RAG + LLM multi-class regulation labeling (with citations)
 # --------------------------------------------------------------------------- #
 _STAGE2_SYS = (

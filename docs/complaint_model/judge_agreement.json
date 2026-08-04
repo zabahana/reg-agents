@@ -1,0 +1,303 @@
+{
+  "n_test_rows": 380,
+  "gate": {
+    "model": "logistic_regression",
+    "threshold": 0.491
+  },
+  "judges": {
+    "nim": {
+      "model": "meta/llama-3.1-8b-instruct",
+      "abstentions": 8
+    },
+    "openai": {
+      "model": "gpt-4o-mini",
+      "abstentions": 0
+    }
+  },
+  "pairs": {
+    "nim_vs_gate": {
+      "n": 372,
+      "agree": 305,
+      "disagree": 67,
+      "rate": 0.8199,
+      "kappa": 0.0451,
+      "cells": {
+        "both_regulatory": 301,
+        "both_non_regulatory": 4,
+        "first_only_regulatory": 56,
+        "second_only_regulatory": 11
+      }
+    },
+    "openai_vs_gate": {
+      "n": 380,
+      "agree": 276,
+      "disagree": 104,
+      "rate": 0.7263,
+      "kappa": 0.2218,
+      "cells": {
+        "both_regulatory": 244,
+        "both_non_regulatory": 32,
+        "first_only_regulatory": 29,
+        "second_only_regulatory": 75
+      }
+    },
+    "nim_vs_openai": {
+      "n": 372,
+      "agree": 273,
+      "disagree": 99,
+      "rate": 0.7339,
+      "kappa": 0.1196,
+      "cells": {
+        "both_regulatory": 262,
+        "both_non_regulatory": 11,
+        "first_only_regulatory": 95,
+        "second_only_regulatory": 4
+      }
+    },
+    "gate_vs_weak": {
+      "n": 380,
+      "agree": 341,
+      "disagree": 39,
+      "rate": 0.8974,
+      "kappa": 0.5833,
+      "cells": {
+        "both_regulatory": 306,
+        "both_non_regulatory": 35,
+        "first_only_regulatory": 13,
+        "second_only_regulatory": 26
+      }
+    },
+    "nim_vs_weak": {
+      "n": 372,
+      "agree": 314,
+      "disagree": 58,
+      "rate": 0.8441,
+      "kappa": 0.0036,
+      "cells": {
+        "both_regulatory": 312,
+        "both_non_regulatory": 2,
+        "first_only_regulatory": 45,
+        "second_only_regulatory": 13
+      }
+    },
+    "openai_vs_weak": {
+      "n": 380,
+      "agree": 279,
+      "disagree": 101,
+      "rate": 0.7342,
+      "kappa": 0.2107,
+      "cells": {
+        "both_regulatory": 252,
+        "both_non_regulatory": 27,
+        "first_only_regulatory": 21,
+        "second_only_regulatory": 80
+      }
+    }
+  },
+  "disputed": {
+    "n": 35,
+    "judges_match_weak": 13,
+    "rows": [
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "I got an email saying that my prepaid card materials had been returned as undeliverable, and that I needed to update my physical address. I spoke with one associate earlier this morning, about XXXX and he said that it wa"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "XX/XX/year> Account was opened without my consent by Chime XXXX ( chime.com ) and I was emailed ( on my primary email ) links to fund the checking account - chime.com. \nI immediately reset the password, searched on how t"
+      },
+      {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "XXXX of XXXX, Bank closed my account with no reason behind it, Ive made all my payments on time, never late. I contacted my bank about the inaccurate information, they looked into it and they had no reason themselves on "
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "This is from CitiCorp via Best Buy credit card. I opened it over a year ago and only used it to buy a laptop. Now, a year later, they charged my account {$180.00} for a year of XXXX XXXX. When I first got the bill - abou"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "Hello, I made some claims that there were suspicious transactions made on my account, so I made XXXX separate claims with Wells Fargo XXXX claims I made yesterday and XXXX was made on XX/XX/XXXX. I didnt make these trans"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "I woke up to email and text message that I opened a chime account with all my information matching but I never opened it. I called chime and told them the issue they were able to close my account however I am worried tha"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "The following accounts do not belong to me, they are the product of identity theft. My name and last name are very common and this can lend itself to confusion. The accounts in question are as follows : XXXX ) XXXX XXXX-"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "I am a XXXX and run a small XXXX XXXX. \nOn XX/XX/XXXX, a company named XXXX took {$38000.00} from my checking account. \nI reported this to Bank Of America on XX/XX/XXXX XXXX as XXXX. \nThey asked me to check with the comp"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "I went to the XXXX Massachusetts BoA branch today and still was offered no resolution to claim XXXX. \n\nThe bank sent a check to my landlord XXXX which bounced. The bank then began sending a series of checks to my landlor"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "Well I was informed by the police someone as stole my identity and making accounts on my name and making checks with my information. With Wells Fargo and I dont own an account from this bank. So Im trying to report this"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "I am writing to file a complaint for unresolved pending charges on my account which is preventing me from closing my account and potential non-compliance with regulatory standards. I submitted a XXXX complaint on XX/XX/2"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "As a follow up to my recent complaint, I again visited a TD Bank branch, this time in XXXX Florida, on XX/XX/2024. I traveled to Florida in an attempt to rectify this situation as I truly do not know what to do to get my"
+      },
+      {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "They have been sending statements since a few years ago, I thought I closed the account in early 2022. I have a pdf of the last statement."
+      },
+      {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "My unemployment card I have requested three times they told me the first two times it be in around two or three business day the first two cards arrived together through XXXX. I order the first card on XXXX XXXX then the"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "I was XXXX and upon release I found out someone took a loan out in my name and now in this recent data breach I realized that my social may have been breached and thats how they took a loan out in my information."
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "U.S Bank issued me a XXXX debit card ( U.S. BankReliaCard ) for unemployment benefits. I did not request this card nor have I filed for unemployment. I've tried to report this to the XXXX XXXX XXXX XXXX XXXX XXXX but I'm"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "I recieved a phone call stating that I applied load with First Tech Credit Union in XXXX. \nI never applied for a loan nor am I a member of the credit union. I live in XXXX XXXX \nI recieved a letter from the credit union "
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "someone use my identity to open a credit card account they open the account in XXXX and use different address it is not my address I live in my current address since XXXX"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "My account was not supposed to be closed. It was closed maliciously they told me if I paid it it would be open and I had it available credit then when I paid it, they told me that they could never open it back up. They l"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "XXXX XXXX I went to Wells Fargo bank to open a new checking account.I went inside the bank at XXXX was first customer and as I walked were the desks section was all the bank staff and employees were at the tellers sectio"
+      },
+      {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "I have had my Chime account for some time and I was not able to access my account in XXXX they closed my account with over {$30000.00} ( XXXX for my business ) leaving me and my children destitute and eventually homeless"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "I often receive the call from the somebody relating to Wells Fargo. On XX/XX/XXXX, I received a call from same number, XXXX ( XXXX XXXX, IA ). I did not mind if there is any discrepancy, and treat these calls as annoying"
+      },
+      {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "I have tried to call US Bank Relicard on several occasions to close my account/card that was issued by XXXX XXXX XXXX XXXX XXXX XXXX  for child support. I can never speak to someone as the automated system always hangs u"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "I claimed a few weeks of unemployment in XX/XX/2021, was approved, funds were placed on a reliacard then immediately frozen, when I inquired about the reason for this my account was deactivated. Reliacard claims the gove"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "Synchrony Bank closed XXXX of my accounts on XX/XX/year>. The following accounts were closed : XXXX XXXX, PayPal Credit XXXX Rooms to Go, Mattress Firm, and XXXXXXXX XXXX XXXX  XXXX I spoke to a customer service manager "
+      }
+    ]
+  }
+}

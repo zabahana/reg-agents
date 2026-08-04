@@ -164,6 +164,44 @@ def test_label_source_provenance():
     assert 0.0 < meta_rate < 1.0
 
 
+def test_llm_judge_parses_strict_json(monkeypatch):
+    """Judges are first-class: verdicts parse from strict JSON, and a
+    non-verdict reply raises instead of falling back to a heuristic."""
+    from reg_agents.common import llm
+
+    monkeypatch.setattr(
+        llm, "system_user",
+        lambda *a, **k: '{"is_regulatory": true, "confidence": 0.9, '
+                        '"reason": "FDCPA collection tactics"}')
+    out = C.llm_judge_regulatory("debt collector calls my workplace", "nim")
+    assert out == {"provider": "nim", "is_regulatory": True,
+                   "confidence": 0.9, "reason": "FDCPA collection tactics"}
+
+    monkeypatch.setattr(llm, "system_user", lambda *a, **k: "not json at all")
+    with pytest.raises(ValueError):
+        C.llm_judge_regulatory("some complaint", "openai")
+
+
+def test_judge_panel_records_errors_as_abstentions(monkeypatch):
+    """A failing judge becomes an error entry — never a substituted verdict —
+    and the gate verdict is always present."""
+    from reg_agents.common import llm
+
+    monkeypatch.setattr(llm, "available_judges", lambda: ["nim", "openai"])
+
+    def fake_judge(text, provider):
+        if provider == "nim":
+            raise RuntimeError("connection refused")
+        return {"provider": provider, "is_regulatory": False,
+                "confidence": 0.8, "reason": "routine service issue"}
+
+    monkeypatch.setattr(C, "llm_judge_regulatory", fake_judge)
+    out = C.judge_panel("the branch closed my local location")
+    assert "is_regulatory" in out["gate"]
+    assert "error" in out["judges"]["nim"]
+    assert out["judges"]["openai"]["is_regulatory"] is False
+
+
 def test_score_batch_accepts_alias_text_column():
     import pandas as pd
 

@@ -177,6 +177,18 @@ switch to NIM) to get fully synthesized, cited output.
   every artifact (fitted models, split indices, environment manifest):
   [`docs/model_development/`](docs/model_development/README.md). Regenerate
   with `python scripts/generate_model_development_doc.py`.
+- **Dual-judge agreement study (NIM + OpenAI)** — both LLM providers act as
+  **independent, first-class judges** (OpenAI is not fallback logic): each
+  answers the stage-1 question — is this complaint regulatory? — on the full
+  held-out test fold, side by side with the logistic-regression gate.
+  Agreement/disagreement counts, Cohen's kappa, verdict cells, and the
+  disputed set (both judges vs the gate — the natural human-adjudication
+  queue) are documented in
+  [`docs/complaint_model/03_judge_agreement.md`](docs/complaint_model/03_judge_agreement.md).
+  Committed run (380 rows): NIM (`llama-3.1-8b-instruct`) agrees with the
+  gate on **305/372 (82.0%)**, OpenAI (`gpt-4o-mini`) on **276/380 (72.6%)**,
+  judges agree with each other on 273/372 (73.4%); 35 disputed rows.
+  Regenerate with `python scripts/judge_agreement_study.py`.
 - **Batch scoring / ingestion** — `python scripts/score_batch.py [--input
   your.csv] [--limit N] [--no-llm]` scores a dataset (default: the reserved
   5% holdout) through the two-stage pipeline and writes
