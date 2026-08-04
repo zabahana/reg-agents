@@ -189,6 +189,15 @@ switch to NIM) to get fully synthesized, cited output.
   gate on **305/372 (82.0%)**, OpenAI (`gpt-4o-mini`) on **276/380 (72.6%)**,
   judges agree with each other on 273/372 (73.4%); 35 disputed rows.
   Regenerate with `python scripts/judge_agreement_study.py`.
+- **DPO / RLAIF from the judge panel** — when NIM and OpenAI agree, that
+  consensus is the *chosen* completion and the opposite label is *rejected*;
+  disputed rows (both judges vs the LR gate) are upweighted. A DistilBERT
+  policy is optimized with the Bradley-Terry / DPO loss and compared to the
+  production gate on the held-out test fold (including the leakage-free
+  slice). Optional `--method generative` runs LoRA + TRL `DPOTrainer` on a
+  small instruct model (GPU / Brev). See
+  [`docs/complaint_model/04_dpo_rlaif.md`](docs/complaint_model/04_dpo_rlaif.md).
+  Run: `python scripts/train_dpo_from_judges.py`.
 - **Batch scoring / ingestion** — `python scripts/score_batch.py [--input
   your.csv] [--limit N] [--no-llm]` scores a dataset (default: the reserved
   5% holdout) through the two-stage pipeline and writes

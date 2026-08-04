@@ -34,3 +34,8 @@ uv.lock
 # Batch-scoring outputs are run artifacts (keep the committed sample only)
 data/scoring/scored_*.csv
 data/complaints/raw_cfpb_dump.json
+
+# DPO policy weights (regenerate with scripts/train_dpo_from_judges.py)
+docs/complaint_model/artifacts/dpo_policy/
+docs/complaint_model/judge_agreement_rows.jsonl
+docs/complaint_model/dpo_panel_*_rows.jsonl

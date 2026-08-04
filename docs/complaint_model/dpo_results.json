@@ -1,0 +1,65 @@
+{
+  "pairs": {
+    "n_pairs": 3040,
+    "by_source": {
+      "weak_contrastive": 3040
+    },
+    "chosen_regulatory_rate": 0.875,
+    "high_value": 0
+  },
+  "train": {
+    "base": "distilbert-base-uncased",
+    "beta": 0.1,
+    "device": "mps",
+    "epochs": 2,
+    "method": "classifier_rlaif_dpo",
+    "note": "binary opposite-class DPO \u2261 class-weighted CE on preferred label",
+    "n_train_rows": 3040,
+    "n_pos": 2660,
+    "n_neg": 380
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "ce_loss": 0.3384,
+      "bt_loss_last": 0.5892
+    },
+    {
+      "epoch": 2,
+      "ce_loss": 0.1629,
+      "bt_loss_last": 0.5471
+    }
+  ],
+  "eval": {
+    "gate": {
+      "name": "logistic_regression_gate",
+      "threshold": 0.491,
+      "roc_auc": 0.9362,
+      "pr_auc": 0.9904,
+      "f1": 0.9401,
+      "accuracy": 0.8974,
+      "agree_with_gate": 1.0,
+      "leakage_free_roc": 0.8876,
+      "leakage_free_n": 81
+    },
+    "dpo": {
+      "name": "dpo_policy",
+      "threshold": 0.477,
+      "roc_auc": 0.9214,
+      "pr_auc": 0.9878,
+      "f1": 0.9073,
+      "accuracy": 0.8474,
+      "agree_with_gate": 0.8395,
+      "leakage_free_roc": 0.8826,
+      "leakage_free_n": 81
+    },
+    "pairs": {
+      "n_pairs": 3040,
+      "by_source": {
+        "weak_contrastive": 3040
+      },
+      "chosen_regulatory_rate": 0.875,
+      "high_value": 0
+    }
+  }
+}

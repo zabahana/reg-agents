@@ -97,8 +97,11 @@ def md_table(headers, rows):
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--limit", type=int, help="judge only the first N test rows")
+    ap.add_argument("--limit", type=int, help="judge only the first N rows of the split")
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--split", choices=("test", "val", "train"), default="test",
+                    help="which fold to judge (test=agreement study; val/train="
+                         "RLAIF preference corpus that does not touch the test fold)")
     args = ap.parse_args()
 
     s = get_settings()
@@ -111,22 +114,29 @@ def main() -> None:
     df = C.load_complaints()
     s1 = C.train_stage1(df)
     x_tr, x_va, x_te, y_tr, y_va, y_te = C.split_stage1(df)
+    fold = {
+        "test": (x_te, y_te),
+        "val": (x_va, y_va),
+        "train": (x_tr, y_tr),
+    }[args.split]
+    x_fold, y_fold = fold
     if args.limit:
-        x_te, y_te = x_te.iloc[: args.limit], y_te.iloc[: args.limit]
-    texts = list(x_te)
+        x_fold, y_fold = x_fold.iloc[: args.limit], y_fold.iloc[: args.limit]
+    texts = list(x_fold)
 
     champ = s1["models"][s1["champion"]]
     proba = champ.predict_proba(s1["vectorizer"].transform(texts))[:, 1]
     gate = [bool(p >= s1["threshold"]) for p in proba]
-    weak = [bool(v) for v in y_te]
+    weak = [bool(v) for v in y_fold]
 
-    print(f"== dual-judge study: {len(texts)} held-out test rows ==")
+    print(f"== dual-judge study: {len(texts)} {args.split} rows ==")
     print(f"   gate: {s1['champion']} @ {s1['threshold']} · "
           f"judges: nim={models['nim']}, openai={models['openai']}")
     t0 = time.time()
-    verdicts, errors = {}, {}
+    judge_raw, verdicts, errors = {}, {}, {}
     for provider in ("nim", "openai"):
         rows = judge_rows(texts, provider, workers=args.workers)
+        judge_raw[provider] = rows
         verdicts[provider] = [r.get("is_regulatory") for r in rows]
         errors[provider] = sum(1 for r in rows if "error" in r)
         n_ok = len(rows) - errors[provider]
@@ -142,17 +152,48 @@ def main() -> None:
         "openai_vs_weak": pair_stats(verdicts["openai"], weak),
     }
 
-    # Disputed set: both judges returned a verdict and both disagree with gate.
-    disputed = []
+    # Full per-row panel — input to the DPO / RLAIF preference pipeline.
+    panel_rows = []
     for i, text in enumerate(texts):
         vn, vo = verdicts["nim"][i], verdicts["openai"][i]
+        rn = judge_raw["nim"][i]
+        ro = judge_raw["openai"][i]
+        panel_rows.append({
+            "idx": int(i),
+            "split": args.split,
+            "narrative": text,
+            "gate": gate[i],
+            "gate_proba": float(proba[i]),
+            "weak": weak[i],
+            "nim": vn,
+            "openai": vo,
+            "nim_reason": rn.get("reason", ""),
+            "openai_reason": ro.get("reason", ""),
+            "nim_confidence": rn.get("confidence"),
+            "openai_confidence": ro.get("confidence"),
+            "nim_error": rn.get("error"),
+            "openai_error": ro.get("error"),
+        })
+    # test → agreement study artifact; val/train → RLAIF preference corpus
+    rows_name = ("judge_agreement_rows.jsonl" if args.split == "test"
+                 else f"dpo_panel_{args.split}_rows.jsonl")
+    rows_path = os.path.join(OUT_DIR, rows_name)
+    with open(rows_path, "w", encoding="utf-8") as fh:
+        for row in panel_rows:
+            fh.write(json.dumps(row) + "\n")
+    print(f"   wrote {rows_path} ({len(panel_rows)} rows)")
+
+    # Disputed set: both judges returned a verdict and both disagree with gate.
+    disputed = []
+    for row in panel_rows:
+        vn, vo = row["nim"], row["openai"]
         if vn is None or vo is None:
             continue
-        if vn != gate[i] and vo != gate[i]:
+        if vn != row["gate"] and vo != row["gate"]:
             disputed.append({
-                "gate": gate[i], "nim": vn, "openai": vo, "weak": weak[i],
-                "judges_match_weak": vn == weak[i] and vo == weak[i],
-                "narrative": text[:220],
+                "gate": row["gate"], "nim": vn, "openai": vo, "weak": row["weak"],
+                "judges_match_weak": vn == row["weak"] and vo == row["weak"],
+                "narrative": row["narrative"][:220],
             })
     n_disp = len(disputed)
     n_judges_right = sum(1 for d in disputed if d["judges_match_weak"])
@@ -162,6 +203,24 @@ def main() -> None:
               f"({p['rate']:.1%}, kappa={p['kappa']})")
     print(f"   disputed (both judges vs gate): {n_disp} rows, "
           f"judges side with weak label on {n_judges_right}")
+
+    if args.split != "test":
+        # RLAIF corpus only — do not overwrite the committed test-fold study.
+        meta = {
+            "split": args.split, "n_rows": len(texts),
+            "gate": {"model": s1["champion"], "threshold": s1["threshold"]},
+            "judges": {p: {"model": models[p], "abstentions": errors[p]}
+                       for p in ("nim", "openai")},
+            "pairs": pairs,
+            "disputed": {"n": n_disp, "judges_match_weak": n_judges_right},
+            "rows_path": rows_path,
+        }
+        meta_path = os.path.join(OUT_DIR, f"dpo_panel_{args.split}.json")
+        with open(meta_path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=2)
+        print(f"== done in {time.time() - t0:.0f}s (RLAIF panel, split={args.split}) ==")
+        print(f"   wrote {rows_path}, {meta_path}")
+        return
 
     # ---- figure -----------------------------------------------------------
     import matplotlib
