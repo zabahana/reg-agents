@@ -177,6 +177,11 @@ switch to NIM) to get fully synthesized, cited output.
   every artifact (fitted models, split indices, environment manifest):
   [`docs/model_development/`](docs/model_development/README.md). Regenerate
   with `python scripts/generate_model_development_doc.py`.
+- **End-to-end Model Development Document** — single narrative covering data
+  (v1→v3), splits, stage-1/2, leakage audit, dual-judge panel, DPO/RLAIF,
+  batch ingestion, and MCP/A2A serving, as markdown **and PDF**:
+  [`docs/complaint_model/05_end_to_end_model_development.md`](docs/complaint_model/05_end_to_end_model_development.md).
+  Regenerate with `python scripts/generate_e2e_model_development_doc.py`.
 - **Dual-judge agreement study (NIM + OpenAI)** — both LLM providers act as
   **independent, first-class judges** (OpenAI is not fallback logic): each
   answers the stage-1 question — is this complaint regulatory? — on the full

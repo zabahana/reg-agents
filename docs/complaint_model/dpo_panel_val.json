@@ -1,0 +1,103 @@
+{
+  "split": "val",
+  "n_rows": 380,
+  "gate": {
+    "model": "logistic_regression",
+    "threshold": 0.491
+  },
+  "judges": {
+    "nim": {
+      "model": "meta/llama-3.1-8b-instruct",
+      "abstentions": 70
+    },
+    "openai": {
+      "model": "gpt-4o-mini",
+      "abstentions": 0
+    }
+  },
+  "pairs": {
+    "nim_vs_gate": {
+      "n": 310,
+      "agree": 249,
+      "disagree": 61,
+      "rate": 0.8032,
+      "kappa": -0.0139,
+      "cells": {
+        "both_regulatory": 248,
+        "both_non_regulatory": 1,
+        "first_only_regulatory": 54,
+        "second_only_regulatory": 7
+      }
+    },
+    "openai_vs_gate": {
+      "n": 380,
+      "agree": 275,
+      "disagree": 105,
+      "rate": 0.7237,
+      "kappa": 0.1915,
+      "cells": {
+        "both_regulatory": 245,
+        "both_non_regulatory": 30,
+        "first_only_regulatory": 41,
+        "second_only_regulatory": 64
+      }
+    },
+    "nim_vs_openai": {
+      "n": 310,
+      "agree": 234,
+      "disagree": 76,
+      "rate": 0.7548,
+      "kappa": 0.0938,
+      "cells": {
+        "both_regulatory": 228,
+        "both_non_regulatory": 6,
+        "first_only_regulatory": 74,
+        "second_only_regulatory": 2
+      }
+    },
+    "gate_vs_weak": {
+      "n": 380,
+      "agree": 344,
+      "disagree": 36,
+      "rate": 0.9053,
+      "kappa": 0.6416,
+      "cells": {
+        "both_regulatory": 303,
+        "both_non_regulatory": 41,
+        "first_only_regulatory": 6,
+        "second_only_regulatory": 30
+      }
+    },
+    "nim_vs_weak": {
+      "n": 310,
+      "agree": 266,
+      "disagree": 44,
+      "rate": 0.8581,
+      "kappa": 0.0009,
+      "cells": {
+        "both_regulatory": 265,
+        "both_non_regulatory": 1,
+        "first_only_regulatory": 37,
+        "second_only_regulatory": 7
+      }
+    },
+    "openai_vs_weak": {
+      "n": 380,
+      "agree": 283,
+      "disagree": 97,
+      "rate": 0.7447,
+      "kappa": 0.1762,
+      "cells": {
+        "both_regulatory": 261,
+        "both_non_regulatory": 22,
+        "first_only_regulatory": 25,
+        "second_only_regulatory": 72
+      }
+    }
+  },
+  "disputed": {
+    "n": 33,
+    "judges_match_weak": 13
+  },
+  "rows_path": "/Users/zelalemabahana/reg-agents/docs/complaint_model/dpo_panel_val_rows.jsonl"
+}
