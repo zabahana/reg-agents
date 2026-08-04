@@ -18,16 +18,16 @@ never silently replaced by a keyword heuristic.
 
 ## 1 · Agreement / disagreement counts
 
-Abstentions — NIM: 122, OpenAI: 0 (excluded pairwise).
+Abstentions — NIM: 8, OpenAI: 0 (excluded pairwise).
 
 | pair | n | agree | disagree | rate | Cohen's kappa |
 |---|---|---|---|---|---|
-| **NIM judge vs LR gate** | 258 | 212 | 46 | 82.2% | 0.0294 |
-| **OpenAI judge vs LR gate** | 380 | 275 | 105 | 72.4% | 0.2103 |
-| NIM judge vs OpenAI judge | 258 | 198 | 60 | 76.7% | 0.1417 |
+| **NIM judge vs LR gate** | 372 | 305 | 67 | 82.0% | 0.0451 |
+| **OpenAI judge vs LR gate** | 380 | 276 | 104 | 72.6% | 0.2218 |
+| NIM judge vs OpenAI judge | 372 | 273 | 99 | 73.4% | 0.1196 |
 | LR gate vs weak label | 380 | 341 | 39 | 89.7% | 0.5833 |
-| NIM judge vs weak label | 258 | 223 | 35 | 86.4% | 0.0057 |
-| OpenAI judge vs weak label | 380 | 278 | 102 | 73.2% | 0.1982 |
+| NIM judge vs weak label | 372 | 314 | 58 | 84.4% | 0.0036 |
+| OpenAI judge vs weak label | 380 | 279 | 101 | 73.4% | 0.2107 |
 
 ![judge agreement](figures/judge_agreement.png)
 
@@ -35,14 +35,14 @@ Abstentions — NIM: 122, OpenAI: 0 (excluded pairwise).
 
 | pair | both say regulatory | both say non-regulatory | first only regulatory | second only regulatory |
 |---|---|---|---|---|
-| NIM vs LR gate | 210 | 2 | 40 | 6 |
-| OpenAI vs LR gate | 244 | 31 | 30 | 75 |
-| NIM vs OpenAI | 191 | 7 | 59 | 1 |
+| NIM vs LR gate | 301 | 4 | 56 | 11 |
+| OpenAI vs LR gate | 244 | 32 | 29 | 75 |
+| NIM vs OpenAI | 262 | 11 | 95 | 4 |
 
 ## 3 · The disputed set — both judges vs the gate
 
-On **27** rows both judges return the same verdict AND it contradicts
-the LR gate. On **10/27** of those, the judges side with
+On **35** rows both judges return the same verdict AND it contradicts
+the LR gate. On **13/35** of those, the judges side with
 the weak label — i.e., likely gate errors; the remainder are candidate
 weak-label errors. Either way this set is the natural **human-adjudication
 queue**: it is where model, judges, and weak supervision cannot all be right.

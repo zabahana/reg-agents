@@ -7,7 +7,7 @@
   "judges": {
     "nim": {
       "model": "meta/llama-3.1-8b-instruct",
-      "abstentions": 122
+      "abstentions": 8
     },
     "openai": {
       "model": "gpt-4o-mini",
@@ -16,42 +16,42 @@
   },
   "pairs": {
     "nim_vs_gate": {
-      "n": 258,
-      "agree": 212,
-      "disagree": 46,
-      "rate": 0.8217,
-      "kappa": 0.0294,
+      "n": 372,
+      "agree": 305,
+      "disagree": 67,
+      "rate": 0.8199,
+      "kappa": 0.0451,
       "cells": {
-        "both_regulatory": 210,
-        "both_non_regulatory": 2,
-        "first_only_regulatory": 40,
-        "second_only_regulatory": 6
+        "both_regulatory": 301,
+        "both_non_regulatory": 4,
+        "first_only_regulatory": 56,
+        "second_only_regulatory": 11
       }
     },
     "openai_vs_gate": {
       "n": 380,
-      "agree": 275,
-      "disagree": 105,
-      "rate": 0.7237,
-      "kappa": 0.2103,
+      "agree": 276,
+      "disagree": 104,
+      "rate": 0.7263,
+      "kappa": 0.2218,
       "cells": {
         "both_regulatory": 244,
-        "both_non_regulatory": 31,
-        "first_only_regulatory": 30,
+        "both_non_regulatory": 32,
+        "first_only_regulatory": 29,
         "second_only_regulatory": 75
       }
     },
     "nim_vs_openai": {
-      "n": 258,
-      "agree": 198,
-      "disagree": 60,
-      "rate": 0.7674,
-      "kappa": 0.1417,
+      "n": 372,
+      "agree": 273,
+      "disagree": 99,
+      "rate": 0.7339,
+      "kappa": 0.1196,
       "cells": {
-        "both_regulatory": 191,
-        "both_non_regulatory": 7,
-        "first_only_regulatory": 59,
-        "second_only_regulatory": 1
+        "both_regulatory": 262,
+        "both_non_regulatory": 11,
+        "first_only_regulatory": 95,
+        "second_only_regulatory": 4
       }
     },
     "gate_vs_weak": {
@@ -68,35 +68,35 @@
       }
     },
     "nim_vs_weak": {
-      "n": 258,
-      "agree": 223,
-      "disagree": 35,
-      "rate": 0.8643,
-      "kappa": 0.0057,
+      "n": 372,
+      "agree": 314,
+      "disagree": 58,
+      "rate": 0.8441,
+      "kappa": 0.0036,
       "cells": {
-        "both_regulatory": 222,
-        "both_non_regulatory": 1,
-        "first_only_regulatory": 28,
-        "second_only_regulatory": 7
+        "both_regulatory": 312,
+        "both_non_regulatory": 2,
+        "first_only_regulatory": 45,
+        "second_only_regulatory": 13
       }
     },
     "openai_vs_weak": {
       "n": 380,
-      "agree": 278,
-      "disagree": 102,
-      "rate": 0.7316,
-      "kappa": 0.1982,
+      "agree": 279,
+      "disagree": 101,
+      "rate": 0.7342,
+      "kappa": 0.2107,
       "cells": {
         "both_regulatory": 252,
-        "both_non_regulatory": 26,
-        "first_only_regulatory": 22,
+        "both_non_regulatory": 27,
+        "first_only_regulatory": 21,
         "second_only_regulatory": 80
       }
     }
   },
   "disputed": {
-    "n": 27,
-    "judges_match_weak": 10,
+    "n": 35,
+    "judges_match_weak": 13,
     "rows": [
       {
         "gate": false,
@@ -128,7 +128,23 @@
         "openai": true,
         "weak": false,
         "judges_match_weak": false,
+        "narrative": "This is from CitiCorp via Best Buy credit card. I opened it over a year ago and only used it to buy a laptop. Now, a year later, they charged my account {$180.00} for a year of XXXX XXXX. When I first got the bill - abou"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
         "narrative": "Hello, I made some claims that there were suspicious transactions made on my account, so I made XXXX separate claims with Wells Fargo XXXX claims I made yesterday and XXXX was made on XX/XX/XXXX. I didnt make these trans"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "I woke up to email and text message that I opened a chime account with all my information matching but I never opened it. I called chime and told them the issue they were able to close my account however I am worried tha"
       },
       {
         "gate": false,
@@ -187,12 +203,20 @@
         "narrative": "They have been sending statements since a few years ago, I thought I closed the account in early 2022. I have a pdf of the last statement."
       },
       {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "My unemployment card I have requested three times they told me the first two times it be in around two or three business day the first two cards arrived together through XXXX. I order the first card on XXXX XXXX then the"
+      },
+      {
         "gate": false,
         "nim": true,
         "openai": true,
-        "weak": false,
-        "judges_match_weak": false,
-        "narrative": "I received my social security payment every month and it never fails that I'm not able to access my money or use my card because they decide to do a security check now I'm XXXX and not able to get around so going to the "
+        "weak": true,
+        "judges_match_weak": true,
+        "narrative": "I was XXXX and upon release I found out someone took a loan out in my name and now in this recent data breach I realized that my social may have been breached and thats how they took a loan out in my information."
       },
       {
         "gate": false,
@@ -222,9 +246,25 @@
         "gate": false,
         "nim": true,
         "openai": true,
+        "weak": false,
+        "judges_match_weak": false,
+        "narrative": "My account was not supposed to be closed. It was closed maliciously they told me if I paid it it would be open and I had it available credit then when I paid it, they told me that they could never open it back up. They l"
+      },
+      {
+        "gate": false,
+        "nim": true,
+        "openai": true,
         "weak": true,
         "judges_match_weak": true,
         "narrative": "XXXX XXXX I went to Wells Fargo bank to open a new checking account.I went inside the bank at XXXX was first customer and as I walked were the desks section was all the bank staff and employees were at the tellers sectio"
+      },
+      {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "I have had my Chime account for some time and I was not able to access my account in XXXX they closed my account with over {$30000.00} ( XXXX for my business ) leaving me and my children destitute and eventually homeless"
       },
       {
         "gate": false,
@@ -233,6 +273,14 @@
         "weak": false,
         "judges_match_weak": false,
         "narrative": "I often receive the call from the somebody relating to Wells Fargo. On XX/XX/XXXX, I received a call from same number, XXXX ( XXXX XXXX, IA ). I did not mind if there is any discrepancy, and treat these calls as annoying"
+      },
+      {
+        "gate": true,
+        "nim": false,
+        "openai": false,
+        "weak": true,
+        "judges_match_weak": false,
+        "narrative": "I have tried to call US Bank Relicard on several occasions to close my account/card that was issued by XXXX XXXX XXXX XXXX XXXX XXXX  for child support. I can never speak to someone as the automated system always hangs u"
       },
       {
         "gate": false,
@@ -249,54 +297,6 @@
         "weak": true,
         "judges_match_weak": true,
         "narrative": "Synchrony Bank closed XXXX of my accounts on XX/XX/year>. The following accounts were closed : XXXX XXXX, PayPal Credit XXXX Rooms to Go, Mattress Firm, and XXXXXXXX XXXX XXXX  XXXX I spoke to a customer service manager "
-      },
-      {
-        "gate": false,
-        "nim": true,
-        "openai": true,
-        "weak": false,
-        "judges_match_weak": false,
-        "narrative": "I received email today, saying I opened a new account with Chime, and trying to setup direct deposit and apply for chime credit card. I can see the name and the direct deposit infos from the email. It is for another pers"
-      },
-      {
-        "gate": true,
-        "nim": false,
-        "openai": false,
-        "weak": true,
-        "judges_match_weak": false,
-        "narrative": "My first unemployment payment was processed on XX/XX/2020. Today is XX/XX/2020 and I still have not received the XXXX from USBank. I have tried to contact them at XXXX multiple times throughout the week. I sat on hold fo"
-      },
-      {
-        "gate": false,
-        "nim": true,
-        "openai": true,
-        "weak": false,
-        "judges_match_weak": false,
-        "narrative": "Wells Fargo will not remove my name from account that was opened during my marriage to my now ex husband. I gave my ex husband {$4500.00} to zero out the balance in XX/XX/2019. My ex husband didnt close the account and h"
-      },
-      {
-        "gate": false,
-        "nim": true,
-        "openai": true,
-        "weak": true,
-        "judges_match_weak": true,
-        "narrative": "On XX/XX/2024 I received an unsolicited email informing me that I needed to finish my account set up, The emails progressed to today 's message stating that I will receiving a debit card in the mail.\n\n*The Banking instit"
-      },
-      {
-        "gate": false,
-        "nim": true,
-        "openai": true,
-        "weak": false,
-        "judges_match_weak": false,
-        "narrative": "My credit card has been blocked by Elan Financial Services team around XX/XX/2024 when I called card service to activate XXXX pay. Since then I've called the service several times and was told by their representatives th"
-      },
-      {
-        "gate": true,
-        "nim": false,
-        "openai": false,
-        "weak": true,
-        "judges_match_weak": false,
-        "narrative": "Trying to activate a new card but when I call the number on the card and puts me on hold and ask to wait for the next worker. I have call on XX/XX/20 from XXXX to XXXX, XX/XX/20 at XXXX to XXXX and called on XX/XX/20 at "
       }
     ]
   }
