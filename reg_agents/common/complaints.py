@@ -11,6 +11,11 @@ Two-stage architecture, mirroring a production complaint-intelligence platform:
                              + LLM reasoning with few-shot examples, returning
                              a label, rationale, and a cited excerpt. Falls
                              back to a keyword scorer when no LLM is available.
+  Risk intelligence:         post-classification layer — does this narrative
+                             signal a *systemic control failure*? Control-domain
+                             mapping, local TF-IDF explanation, prior-case
+                             similarity, and a recommended thematic action
+                             (see ``risk_intelligence``).
 
 Data: real, redacted narratives from the CFPB Consumer Complaint Database
 (data/complaints/cfpb_complaints.csv, see scripts/fetch_cfpb_complaints.py).
@@ -688,7 +693,12 @@ def _default_retriever():
 
 
 def classify_complaint(text: str, use_llm: bool = True) -> Dict:
-    """Full two-stage pipeline for one complaint."""
+    """Full two-stage pipeline for one complaint, plus risk intelligence.
+
+    Stage 1/2 remain the model anchor (what the complaint *is*). The
+    ``risk_intelligence`` block asks whether the same narrative signals a
+    systemic control failure (see ``reg_agents.common.risk_intelligence``).
+    """
     stage1 = classify_binary(text)
     out: Dict = {"stage1": stage1}
     if stage1["is_regulatory"]:
@@ -703,6 +713,11 @@ def classify_complaint(text: str, use_llm: bool = True) -> Dict:
             "regulation_description": reg.description,
             "citation": None,
         }
+    from reg_agents.common.risk_intelligence import assess_risk_intelligence
+
+    out["risk_intelligence"] = assess_risk_intelligence(
+        text, out, use_llm=use_llm,
+    )
     return out
 
 
@@ -807,7 +822,9 @@ def score_batch(df: pd.DataFrame, use_llm: bool = True,
 
       complaint_id · complaint · score (stage-1 P(regulatory)) ·
       is_regulatory · label · regulation_name · confidence ·
-      llm_reasoning · citation_source · mode
+      llm_reasoning · citation_source · mode ·
+      systemic_signal · risk_score · control_domain · failure_mode ·
+      recommended_action
 
     ``progress`` is an optional callable(done, total) for UI progress bars.
     """
@@ -821,6 +838,7 @@ def score_batch(df: pd.DataFrame, use_llm: bool = True,
         text = str(row[text_col])
         res = classify_complaint(text, use_llm=use_llm)
         s1, s2 = res["stage1"], res["stage2"]
+        risk = res.get("risk_intelligence") or {}
         citation = s2.get("citation") or {}
         rows.append({
             "complaint_id": ids.loc[idx],
@@ -833,6 +851,11 @@ def score_batch(df: pd.DataFrame, use_llm: bool = True,
             "llm_reasoning": s2.get("rationale", ""),
             "citation_source": citation.get("source", ""),
             "mode": s2.get("mode", ""),
+            "systemic_signal": risk.get("systemic_signal", ""),
+            "risk_score": risk.get("score"),
+            "control_domain": risk.get("control_domain", ""),
+            "failure_mode": risk.get("failure_mode", ""),
+            "recommended_action": risk.get("recommended_action", ""),
         })
         if progress is not None:
             progress(i + 1, total)

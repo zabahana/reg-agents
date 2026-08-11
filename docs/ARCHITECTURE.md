@@ -24,11 +24,13 @@ Desktop) can use them.
 - **modeling-mcp** — `list_tasks`, `list_candidate_models`, `run_model_bakeoff`,
   `get_champion`. Trains candidate models and selects a champion. scikit-learn
   locally; **RAPIDS cuML / XGBoost** analog on GPU.
-- **complaint-mcp** — `classify_complaint`, `list_regulation_taxonomy`,
-  `sample_complaints`, `get_model_metrics`. Two-stage complaint→regulation
-  classification over real CFPB data (binary gate + RAG/LLM labeling with
-  citations). GPU upgrade path: BERT-class encoder fine-tuned with NeMo, served
-  via Triton; curation at scale via **NeMo Data Curator**.
+- **complaint-mcp** — `classify_complaint`, `assess_risk_intelligence`,
+  `list_regulation_taxonomy`, `sample_complaints`, `get_model_metrics`.
+  Two-stage complaint→regulation classification over real CFPB data (binary
+  gate + RAG/LLM labeling with citations), plus a **risk intelligence** layer
+  that asks whether the complaint signals a systemic control failure. GPU
+  upgrade path: BERT-class encoder fine-tuned with NeMo, served via Triton;
+  curation at scale via **NeMo Data Curator**.
 
 ### A2A agents (Agent-to-Agent protocol)
 Each agent publishes an **Agent Card** at `/.well-known/agent-card.json` and
@@ -58,12 +60,15 @@ Model-development lifecycle flow (three lines of defense):
 - **lifecycle-orchestrator** — sequences developer → validator → audit, threading
   each artifact to the next agent; also an A2A server.
 
-Complaint-classification flow:
+Complaint-classification + risk-intelligence flow:
 
 - **complaint-agent** — classifies a complaint narrative via complaint-mcp
   (stage 1 binary gate → stage 2 RAG + LLM with few-shot examples), returns the
-  regulation label, a **citation** from the retrieved policy excerpts, and an
-  analyst routing summary. Emits `complaint_classifications_total{label,mode}`.
+  regulation label, a **citation** from the retrieved policy excerpts, a
+  **risk_intelligence** artifact (systemic signal, control domain, prior-case
+  similarity, local TF-IDF explanation, recommended action), and an analyst
+  routing summary. Emits `complaint_classifications_total{label,mode}` and
+  `complaint_risk_signals_total{systemic_signal,control_domain}`.
   Model documentation (dev doc + validation report, MD + **PDF**, with accuracy
   figures) lives in `docs/complaint_model/`.
 
@@ -132,7 +137,7 @@ sequenceDiagram
     L-->>U: 3 documents + trace
 ```
 
-## Request flow (complaint classification)
+## Request flow (complaint classification + risk intelligence)
 
 ```mermaid
 sequenceDiagram
@@ -149,12 +154,16 @@ sequenceDiagram
         CM->>Reg: retrieve top-k policy/regulation excerpts
         CM->>NV: NIM chat (taxonomy + few-shots + excerpts + complaint)
         NV-->>CM: {label, confidence, rationale, citation_source}
+        CM->>CM: risk intelligence (control domain, similarity, local explanation)
+        opt LLM hypothesis
+            CM->>NV: systemic vs isolated control-failure hypothesis
+        end
     else non-regulatory
-        CM-->>CM: gate out (no LLM call)
+        CM-->>CM: gate out (risk signal = none)
     end
-    CM-->>CA: two-stage result + cited excerpt
+    CM-->>CA: classification + citation + risk_intelligence
     CA->>NV: NIM chat (analyst routing summary)
-    CA-->>U: label + citation + summary
+    CA-->>U: label + citation + systemic signal + summary
 ```
 
 ## Local vs GPU parity

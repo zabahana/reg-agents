@@ -149,27 +149,41 @@ def run_fraud_monitoring(transaction: Dict[str, Any]) -> Dict[str, str]:
 
 
 def run_complaint_classification(narrative: str) -> Dict[str, str]:
-    """Classify a consumer complaint into the 24-category regulation taxonomy.
+    """Classify a consumer complaint and assess systemic control-failure risk.
 
-    Returns the raw two-stage model output JSON (`classification`) and the
-    analyst-facing `summary`. Falls back to in-process classification when the
-    complaint agent is not running (e.g. bare `streamlit run`).
+    Returns the raw two-stage model output JSON (`classification`, including
+    ``risk_intelligence``), a dedicated ``risk`` JSON artifact when the agent
+    is up, and the analyst-facing ``summary``. Falls back to in-process
+    classification when the complaint agent is not running (e.g. bare
+    ``streamlit run``).
     """
     s = get_settings()
     agent = A2AClient(s.complaint_agent_url)
-    out: Dict[str, str] = {"classification": "", "summary": ""}
+    out: Dict[str, str] = {"classification": "", "risk": "", "summary": ""}
     try:
         task = agent.send("classify this complaint", {"narrative": narrative})
         for a in task.artifacts:
             if a.name == "complaint_classification":
                 out["classification"] = a.as_text()
+            elif a.name == "risk_intelligence":
+                out["risk"] = a.as_text()
             elif a.name == "analyst_summary":
                 out["summary"] = a.as_text()
+        if not out["risk"] and out["classification"]:
+            try:
+                out["risk"] = json.dumps(
+                    json.loads(out["classification"]).get("risk_intelligence", {}),
+                    indent=2,
+                )
+            except Exception:  # noqa: BLE001
+                pass
     except Exception:  # noqa: BLE001 - agent down: classify in-process
         try:
             from reg_agents.common import complaints as C
 
-            out["classification"] = json.dumps(C.classify_complaint(narrative), indent=2)
+            payload = C.classify_complaint(narrative)
+            out["classification"] = json.dumps(payload, indent=2)
+            out["risk"] = json.dumps(payload.get("risk_intelligence", {}), indent=2)
             out["summary"] = "(complaint agent offline — classified in-process)"
         except Exception as exc2:  # noqa: BLE001
             out["summary"] = f"[complaint classification unavailable: {exc2}]"

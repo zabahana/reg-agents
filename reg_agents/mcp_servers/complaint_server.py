@@ -3,7 +3,8 @@
 Fronts the two-stage complaint model (reg_agents/common/complaints.py):
 stage 1 = TF-IDF binary "regulatory or not" champion; stage 2 = RAG over the
 regulation corpus + LLM reasoning with few-shot examples, returning a label
-from the 24-category taxonomy plus a cited excerpt.
+from the 24-category taxonomy plus a cited excerpt; then a risk-intelligence
+layer that asks whether the complaint signals a systemic control failure.
 
 Run:  python -m reg_agents.mcp_servers.complaint_server  (PORT default 9105)
 """
@@ -25,12 +26,29 @@ def classify_complaint(narrative: str, use_llm: bool = True) -> str:
 
     Stage 1 decides regulatory vs not; if regulatory, stage 2 assigns one of
     the 24 regulation categories with a confidence, rationale, and a citation
-    from the retrieved policy corpus. Returns JSON.
+    from the retrieved policy corpus. A risk_intelligence block then assesses
+    whether the narrative signals a systemic control failure (control domain,
+    prior-case similarity, local TF-IDF explanation, recommended action).
+    Returns JSON.
     """
     from reg_agents.common import complaints as C
 
     result = C.classify_complaint(narrative, use_llm=use_llm)
     return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def assess_risk_intelligence(narrative: str, use_llm: bool = True) -> str:
+    """Assess whether a complaint signals a systemic control failure.
+
+    Runs the two-stage classifier as the model anchor, then returns only the
+    risk_intelligence block (JSON). Prefer classify_complaint when you also
+    need the regulation label and citation.
+    """
+    from reg_agents.common import complaints as C
+
+    result = C.classify_complaint(narrative, use_llm=use_llm)
+    return json.dumps(result.get("risk_intelligence", {}), indent=2)
 
 
 @mcp.tool()

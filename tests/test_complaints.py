@@ -97,6 +97,51 @@ def test_full_pipeline_without_llm():
     assert res["stage1"]["is_regulatory"] is True
     assert res["stage2"]["label"] in C.REGULATIONS
     assert res["stage2"]["citation"] is not None
+    risk = res["risk_intelligence"]
+    assert risk["systemic_signal"] in {"isolated", "moderate", "elevated"}
+    assert 0.0 <= risk["score"] <= 1.0
+    assert risk["control_domain"]
+    assert risk["recommended_action"]
+    assert "local_explanation" in risk
+    assert "similar_prior_cases" in risk
+
+
+def test_risk_intelligence_none_for_non_regulatory():
+    res = C.classify_complaint(
+        "I love my debit card design and wish you offered more colors.",
+        use_llm=False,
+    )
+    # May or may not gate depending on trained model; if gated non-reg, signal none.
+    if not res["stage1"]["is_regulatory"]:
+        assert res["risk_intelligence"]["systemic_signal"] == "none"
+        assert res["risk_intelligence"]["score"] == 0.0
+
+
+def test_risk_intelligence_elevates_pattern_language():
+    from reg_agents.common import risk_intelligence as RI
+
+    classification = {
+        "stage1": {
+            "is_regulatory": True, "probability": 0.92,
+            "threshold": 0.5, "model": "logistic_regression",
+        },
+        "stage2": {
+            "label": "SALES_PRACTICES", "confidence": 0.8,
+            "regulation_name": "Sales Practices",
+            "rationale": "Unauthorized account opening.",
+        },
+    }
+    text = (
+        "They opened a credit card without my consent and this keeps happening "
+        "repeatedly every month across all my accounts — it is company-wide "
+        "and automated."
+    )
+    risk = RI.assess_risk_intelligence(text, classification, use_llm=False)
+    assert risk["systemic_signal"] in {"moderate", "elevated"}
+    assert risk["score"] >= 0.40
+    assert risk["control_domain"] == "Sales Practices Controls"
+    assert any("pattern" in d.lower() or "recurrence" in d.lower()
+               for d in risk["drivers"])
 
 
 def test_scoring_holdout_reserved_before_split():
@@ -120,10 +165,15 @@ def test_score_batch_output_schema():
     scored = C.score_batch(batch, use_llm=False)
     assert len(scored) == 3
     for col in ("complaint_id", "complaint", "score", "is_regulatory",
-                "label", "llm_reasoning"):
+                "label", "llm_reasoning", "systemic_signal", "risk_score",
+                "control_domain", "failure_mode", "recommended_action"):
         assert col in scored.columns
     assert scored["score"].between(0, 1).all()
     assert scored["label"].isin(C.REGULATIONS).all()
+    assert scored["systemic_signal"].isin(
+        {"none", "isolated", "moderate", "elevated"}
+    ).all()
+    assert scored["risk_score"].between(0, 1).all()
 
 
 def test_no_cross_split_duplicate_leakage():

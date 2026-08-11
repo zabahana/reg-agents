@@ -84,9 +84,11 @@ with st.sidebar:
     st.divider()
 
     with st.form("complaint_form"):
-        st.subheader("② Complaint classification")
-        st.caption("Two-stage model: regulatory gate → RAG+LLM label "
-                   "(1 of 24 regulations) with citation. Real CFPB data.")
+        st.subheader("② Complaint classification + risk intelligence")
+        st.caption("Model anchor: regulatory gate → RAG+LLM label "
+                   "(1 of 24 regulations) with citation. Then risk "
+                   "intelligence: does it signal a systemic control failure? "
+                   "Real CFPB data.")
         samples = _load_complaint_samples()
         complaint_text = ""
         if samples is not None:
@@ -97,7 +99,8 @@ with st.sidebar:
             picked = st.selectbox("Pick a real CFPB complaint", options)
             complaint_text = str(samples.iloc[options.index(picked)]["narrative"])
         custom = st.text_area("…or paste a complaint narrative", height=90)
-        complaint_go = st.form_submit_button("Classify complaint", type="primary")
+        complaint_go = st.form_submit_button(
+            "Classify + assess risk", type="primary")
         if custom.strip():
             complaint_text = custom.strip()
 
@@ -118,8 +121,9 @@ with st.sidebar:
     with st.form("batch_form"):
         st.subheader("④ Batch scoring (ingestion)")
         st.caption("Upload a CSV of complaints — or trigger the reserved 5% "
-                   "scoring holdout — through the two-stage pipeline. Output: "
-                   "complaint id, complaint, score, LLM reasoning (CSV).")
+                   "scoring holdout — through classification + risk "
+                   "intelligence. Output CSV includes systemic_signal, "
+                   "risk_score, and control_domain.")
         uploaded = st.file_uploader(
             "CSV with a `narrative` / `complaint` / `text` column "
             "(optional `complaint_id`)",
@@ -128,7 +132,7 @@ with st.sidebar:
         use_holdout = st.checkbox(
             "No file — score the reserved 5% holdout instead", value=True)
         batch_limit = st.slider("Max rows to score", 5, 200, 25, 5)
-        batch_llm = st.checkbox("Use LLM for stage-2 reasoning", value=True)
+        batch_llm = st.checkbox("Use LLM for stage-2 / risk hypothesis", value=True)
         batch_go = st.form_submit_button("Score batch", type="primary")
 
 
@@ -183,7 +187,7 @@ def _render_fraud(txn: dict) -> None:
 
 
 def _render_complaint(narrative: str) -> None:
-    with st.spinner("Classifying (stage 1 gate → stage 2 RAG + LLM)…"):
+    with st.spinner("Classifying (stage 1 → stage 2) + risk intelligence…"):
         result = run_complaint_classification(narrative)
 
     st.subheader("Complaint classification")
@@ -192,6 +196,12 @@ def _render_complaint(narrative: str) -> None:
     except Exception:  # noqa: BLE001
         data = {}
     s1, s2 = data.get("stage1", {}), data.get("stage2", {})
+    risk = data.get("risk_intelligence") or {}
+    if not risk and result.get("risk"):
+        try:
+            risk = json.loads(result["risk"])
+        except Exception:  # noqa: BLE001
+            risk = {}
 
     c1, c2, c3 = st.columns(3)
     p1 = s1.get("probability")
@@ -218,6 +228,69 @@ def _render_complaint(narrative: str) -> None:
         st.info(f"**{citation.get('source', '')} — {citation.get('heading', '')}**\n\n"
                 f"{citation.get('text', '')}")
 
+    # --- Risk intelligence (elevates classification → control risk) ---
+    st.markdown("#### Risk intelligence — systemic control failure?")
+    st.caption(
+        "Classification says **what** the complaint is. Risk intelligence asks "
+        "whether it signals a **systemic control failure**."
+    )
+    signal = str(risk.get("systemic_signal", "—"))
+    rscore = risk.get("score")
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Systemic signal", signal.upper() if signal else "—")
+    r2.metric("Risk score",
+              f"{rscore:.0%}" if isinstance(rscore, (int, float)) else "—")
+    r3.metric("Control domain", str(risk.get("control_domain", "—")))
+
+    banner = {
+        "elevated": st.error,
+        "moderate": st.warning,
+        "isolated": st.info,
+        "none": st.success,
+    }.get(signal, st.info)
+    failure = risk.get("failure_mode") or ""
+    action = risk.get("recommended_action") or ""
+    banner(
+        (f"**{failure}**\n\n" if failure else "")
+        + (f"{action}" if action else f"Signal: {signal}")
+    )
+
+    drivers = risk.get("drivers") or []
+    if drivers:
+        st.markdown("**Drivers**")
+        for d in drivers:
+            st.markdown(f"- {d}")
+
+    hyp = risk.get("hypothesis") or {}
+    if isinstance(hyp, dict) and hyp.get("hypothesis"):
+        st.markdown("**Control-failure hypothesis**")
+        st.markdown(hyp["hypothesis"])
+        if hyp.get("control_test"):
+            st.caption(f"Suggested control test: {hyp['control_test']}")
+
+    similars = risk.get("similar_prior_cases") or []
+    if similars:
+        st.markdown("**Similar prior cases**")
+        for c in similars:
+            st.markdown(
+                f"- `{c.get('complaint_id')}` · {c.get('label')} · "
+                f"sim={c.get('similarity')} · {c.get('product', '')}\n\n"
+                f"  _{c.get('excerpt', '')}_"
+            )
+
+    expl = risk.get("local_explanation") or {}
+    pos = expl.get("top_positive") or []
+    if pos:
+        with st.expander(
+            f"Local explanation — top TF-IDF terms "
+            f"(stage-1 {expl.get('model') or 'champion'})"
+        ):
+            st.dataframe(
+                [{"term": p["term"], "contribution": p["contribution"]} for p in pos],
+                use_container_width=True,
+                hide_index=True,
+            )
+
     if result.get("summary"):
         st.markdown("#### Analyst summary")
         st.markdown(result["summary"])
@@ -237,12 +310,20 @@ def _render_complaint(narrative: str) -> None:
         m2.metric("Stage 1 F1", lb["f1"])
         m3.metric("Stage 2 family accuracy", s2m["family_accuracy"])
         m4.metric("Stage 2 macro-F1", s2m["macro_f1"])
-        fig = os.path.join(_COMPLAINT_DOCS, "figures", "stage2_recall.png")
-        if os.path.exists(fig):
-            with st.expander("Per-category recall (validation figure)"):
-                st.image(fig)
+        fig_cm = os.path.join(_COMPLAINT_DOCS, "figures", "stage1_confusion.png")
+        fig_rec = os.path.join(_COMPLAINT_DOCS, "figures", "stage2_recall.png")
+        if os.path.exists(fig_cm) or os.path.exists(fig_rec):
+            with st.expander("Validation figures (confusion matrix / per-class recall)"):
+                cols = st.columns(2)
+                if os.path.exists(fig_cm):
+                    cols[0].image(fig_cm, caption="Stage-1 confusion matrix")
+                if os.path.exists(fig_rec):
+                    cols[1].image(fig_rec, caption="Stage-2 per-category recall")
         st.caption("Full documentation: `docs/complaint_model/` — development "
-                   "document + independent validation report (MD + PDF).")
+                   "document + independent validation report (MD + PDF). "
+                   "Model anchor: TF-IDF + logistic/XGBoost gate (imbalance "
+                   "treatment, validation-tuned threshold), macro-F1 / "
+                   "per-class recall, local explanation, prior-case similarity.")
 
 
 def _render_batch(uploaded_file, use_holdout: bool, limit: int,
@@ -251,7 +332,7 @@ def _render_batch(uploaded_file, use_holdout: bool, limit: int,
 
     from reg_agents.common import complaints as C
 
-    st.subheader("Batch scoring — data ingestion")
+    st.subheader("Batch scoring — classification + risk intelligence")
     if uploaded_file is not None:
         try:
             batch = pd.read_csv(uploaded_file)
@@ -288,19 +369,28 @@ def _render_batch(uploaded_file, use_holdout: bool, limit: int,
     bar.empty()
 
     n_reg = int(scored["is_regulatory"].sum())
-    c1, c2, c3 = st.columns(3)
+    n_elev = int((scored["systemic_signal"] == "elevated").sum()) if "systemic_signal" in scored else 0
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Complaints scored", len(scored))
     c2.metric("Flagged regulatory", f"{n_reg} ({n_reg / max(len(scored), 1):.0%})")
-    c3.metric("Stage-2 mode", scored["mode"].mode().iloc[0] if len(scored) else "—")
+    c3.metric("Elevated systemic risk", n_elev)
+    c4.metric("Stage-2 mode", scored["mode"].mode().iloc[0] if len(scored) else "—")
 
+    display_cols = [
+        "complaint_id", "complaint", "score", "is_regulatory",
+        "label", "confidence", "systemic_signal", "risk_score",
+        "control_domain", "llm_reasoning",
+    ]
+    display_cols = [c for c in display_cols if c in scored.columns]
     st.dataframe(
-        scored[["complaint_id", "complaint", "score", "is_regulatory",
-                "label", "confidence", "llm_reasoning"]],
+        scored[display_cols],
         use_container_width=True,
         column_config={
             "complaint": st.column_config.TextColumn(width="medium"),
             "score": st.column_config.NumberColumn(
                 "score P(regulatory)", format="%.4f"),
+            "risk_score": st.column_config.NumberColumn(
+                "risk score", format="%.2f"),
             "llm_reasoning": st.column_config.TextColumn(width="large"),
         },
     )
@@ -315,6 +405,9 @@ def _render_batch(uploaded_file, use_holdout: bool, limit: int,
 
     with st.expander("Regulation label mix"):
         st.bar_chart(scored["label"].value_counts())
+    if "systemic_signal" in scored.columns:
+        with st.expander("Systemic-signal mix"):
+            st.bar_chart(scored["systemic_signal"].value_counts())
 
 
 if validation_go:
@@ -335,9 +428,10 @@ else:
     st.info(
         "Pick an operation in the sidebar:\n\n"
         "- **① Model validation** — generate a second-line validation report for a model.\n"
-        "- **② Complaint classification** — assign a real CFPB complaint to one of "
-        "24 regulation categories with a RAG citation.\n"
+        "- **② Complaint classification + risk intelligence** — assign a CFPB "
+        "complaint to a regulation category, then ask whether it signals a "
+        "systemic control failure.\n"
         "- **③ Fraud monitoring** — score a single transaction in real time.\n"
         "- **④ Batch scoring (ingestion)** — upload a complaint CSV (or trigger the "
-        "reserved 5% holdout) and download the scored CSV with LLM reasoning."
+        "reserved 5% holdout) and download scored CSV with risk signals."
     )

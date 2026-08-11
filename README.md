@@ -38,21 +38,27 @@ Three orchestrated flows share the same agent/MCP infrastructure:
    challenge*, and Internal Audit reviews the process. This mirrors the banking
    **three lines of defense**. See committed artifacts in
    [`docs/lifecycle/`](docs/lifecycle/README.md).
-3. **Complaint classification** — a two-stage model over **real CFPB complaint
-   narratives**: a binary classifier gates *regulatory vs not*, then RAG over
-   the regulation corpus + LLM reasoning (few-shot) assigns one of **24
-   regulation categories** (UDAAP, sales practices, FCRA, Reg E, …) with a
-   cited excerpt. Development + validation documentation with accuracy figures
-   ships as markdown **and PDF** in
+3. **Complaint classification + risk intelligence** — a two-stage model over
+   **real CFPB complaint narratives** is the **model anchor**: a binary
+   TF-IDF + logistic/XGBoost classifier gates *regulatory vs not* (imbalance
+   treatment, validation-tuned threshold), then RAG over the regulation corpus
+   + LLM reasoning (few-shot) assigns one of **24 regulation categories**
+   (UDAAP, sales practices, FCRA, Reg E, …) with a cited excerpt, local
+   explanation, and similarity to prior cases. A **risk intelligence** layer
+   then asks whether the complaint signals a **systemic control failure**
+   (control domain, systemic score, recommended thematic action). Development
+   + validation documentation with accuracy figures (macro-F1, per-class
+   recall, confusion matrix) ships as markdown **and PDF** in
    [`docs/complaint_model/`](docs/complaint_model/README.md).
 4. **Batch scoring (ingestion layer)** — a stratified **5% scoring holdout**
    is reserved *before* the 80/10/10 modeling split and acts as the unseen
    inbound batch. Trigger it from the CLI (`python scripts/score_batch.py`)
    or upload any complaint CSV in the UI (**④ Batch scoring**); either path
-   runs the full two-stage pipeline and emits a scored CSV with
+   runs classification + risk intelligence and emits a scored CSV with
    `complaint_id, complaint, score, is_regulatory, label, confidence,
-   llm_reasoning, citation_source, mode`. A committed LLM-scored sample lives
-   at `data/scoring/sample_scored_holdout.csv`.
+   llm_reasoning, citation_source, mode, systemic_signal, risk_score,
+   control_domain, failure_mode, recommended_action`. A committed LLM-scored
+   sample lives at `data/scoring/sample_scored_holdout.csv`.
 
 ---
 
@@ -97,7 +103,7 @@ agents (three lines of defense):
 ```
 
 A third flow classifies consumer complaints (real CFPB narratives) against the
-regulation taxonomy:
+regulation taxonomy, then elevates the result into risk intelligence:
 
 ```
    user / UI ──► Complaint Agent (A2A :8110) ──► complaint-mcp (:9105)
@@ -105,6 +111,9 @@ regulation taxonomy:
                        stage 1: TF-IDF binary gate — regulatory?  (logistic/XGBoost)
                        stage 2: RAG (regulation corpus) + LLM few-shot reasoning
                                 → 1 of 24 categories + citation + rationale
+                       risk intelligence: systemic control-failure signal
+                                → control domain + prior-case similarity
+                                + local explanation + recommended action
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for design detail and
