@@ -26,6 +26,7 @@ from reg_agents.common.a2a import (
     build_a2a_app,
 )
 from reg_agents.common.mcp_client import call_tool
+from reg_agents.common.mrm_document_instructions import VALIDATION_SECTION_INSTRUCTIONS
 from reg_agents.config import get_settings
 
 CARD = AgentCard(
@@ -46,14 +47,12 @@ _SYS = (
     "You are an INDEPENDENT model validator (VP, Model Risk Management) — the "
     "second line of defense — performing effective challenge on a model produced "
     "by the development team. You did not build the model. Given the development "
-    "document, the candidate leaderboard, and relevant regulations, write a "
-    "VALIDATION REPORT with: 1) Scope & Materials Reviewed, 2) Conceptual "
-    "Soundness, 3) Effective Challenge of Model Selection (was the champion chosen "
-    "on an appropriate primary metric given class imbalance? critique it and note "
-    "if a challenger was better on PR-AUC/recall), 4) Data & Outcomes Analysis, "
-    "5) Fair-Lending / Consumer-Protection Review, 6) Findings (severity-ranked) "
-    "with required remediations, and 7) a DISPOSITION: Approve / Approve with "
-    "Conditions / Reject. Cite regulation sources in [brackets]. Use markdown."
+    "document, the candidate leaderboard, and relevant regulations, produce a "
+    "complete VALIDATION REPORT.\n\n"
+    f"{VALIDATION_SECTION_INSTRUCTIONS}\n\n"
+    "Challenge the developer's primary metric choice when class imbalance or "
+    "consumer harm asymmetry makes accuracy/ROC misleading. Cite regulation "
+    "sources in [brackets]. Use markdown."
 )
 
 
@@ -76,7 +75,7 @@ def validate(task_id: str, development_document: str, leaderboard: str) -> str:
         f"CANDIDATE LEADERBOARD (JSON):\n{leaderboard}\n\n"
         f"RELEVANT REGULATIONS:\n{rules}",
         fallback=f"Development document:\n{development_document}\n\nRules:\n{rules}",
-        max_tokens=1700,
+        max_tokens=2400,
     )
 
 

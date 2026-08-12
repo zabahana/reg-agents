@@ -22,6 +22,7 @@ from reg_agents.agents.orchestrator import (  # noqa: E402
     run_complaint_classification,
     run_fraud_monitoring,
     run_validation_review,
+    submit_complaint_hitl,
 )
 from reg_agents.config import get_settings  # noqa: E402
 
@@ -58,7 +59,8 @@ st.caption(
     f"LLM provider: **{settings.llm_provider}** ({settings.active_model})  ·  "
     f"Embeddings: **{settings.embedding_provider}**  ·  "
     f"Vector backend: **{settings.vector_backend}**  ·  "
-    f"Fraud serving: **{'Triton (GPU)' if settings.triton_url else 'local heuristic'}**"
+    f"Serving: **{'Triton (GPU)' if settings.triton_url else 'local'}** "
+    f"(fraud + complaint stage-1 when exported)"
 )
 
 with st.sidebar:
@@ -186,9 +188,15 @@ def _render_fraud(txn: dict) -> None:
         st.code(result["fraud_score"] or "{}", language="json")
 
 
-def _render_complaint(narrative: str) -> None:
-    with st.spinner("Classifying (stage 1 → stage 2) + risk intelligence…"):
-        result = run_complaint_classification(narrative)
+def _render_complaint(narrative: str, *, reuse_cached: bool = False) -> None:
+    if reuse_cached and st.session_state.get("complaint_result"):
+        result = st.session_state["complaint_result"]
+        narrative = st.session_state.get("complaint_narrative", narrative)
+    else:
+        with st.spinner("Classifying (stage 1 → stage 2) + risk intelligence…"):
+            result = run_complaint_classification(narrative)
+        st.session_state["complaint_result"] = result
+        st.session_state["complaint_narrative"] = narrative
 
     st.subheader("Complaint classification")
     try:
@@ -212,6 +220,13 @@ def _render_complaint(narrative: str) -> None:
     conf = s2.get("confidence")
     c3.metric("Stage-2 confidence",
               f"{conf:.0%}" if isinstance(conf, (int, float)) else "—")
+    backend = s1.get("backend", "local-sklearn")
+    st.caption(f"Stage-1 backend: `{backend}`"
+               + (" · Triton fallback used" if s1.get("triton_fallback") else ""))
+    rails = data.get("guardrails") or {}
+    rail_hits = list(rails.get("input") or []) + list(s2.get("guardrails") or [])
+    if rail_hits:
+        st.warning("Guardrails: " + ", ".join(rail_hits))
 
     if s2.get("label") and s2.get("label") != "NON_REGULATORY":
         st.error(f"**{s2.get('regulation_name', s2.get('label'))}** — "
@@ -290,6 +305,43 @@ def _render_complaint(narrative: str) -> None:
                 use_container_width=True,
                 hide_index=True,
             )
+
+    # --- HITL disposition ---
+    hitl = data.get("hitl") or {}
+    st.markdown("#### Human-in-the-loop (HITL)")
+    if hitl.get("required"):
+        st.warning(hitl.get("note") or "Queued for analyst review.")
+    else:
+        st.info(hitl.get("note") or "Auto-routed; override optional.")
+    from reg_agents.common import complaints as _C
+
+    taxonomy = sorted(_C.REGULATIONS.keys())
+    with st.form("hitl_form"):
+        disposition = st.selectbox(
+            "Disposition",
+            ["approve", "override", "escalate"],
+            help="Approve model label, override to another taxonomy code, or escalate.",
+        )
+        override_label = st.selectbox("Override label (if overriding)", taxonomy,
+                                      index=taxonomy.index(s2.get("label"))
+                                      if s2.get("label") in taxonomy else 0)
+        analyst = st.text_input("Analyst id", value="analyst")
+        rationale = st.text_area("Rationale / notes", height=70)
+        hitl_go = st.form_submit_button("Submit HITL decision", type="primary")
+    if hitl_go:
+        submitted = submit_complaint_hitl(
+            narrative=narrative,
+            classification_json=result.get("classification") or "{}",
+            disposition=disposition,
+            analyst=analyst,
+            override_label=override_label if disposition == "override" else "",
+            rationale=rationale,
+        )
+        if submitted.get("error"):
+            st.error(submitted["error"])
+        else:
+            st.success("HITL decision recorded to the audit log.")
+            st.code(submitted.get("record") or "{}", language="json")
 
     if result.get("summary"):
         st.markdown("#### Analyst summary")
@@ -424,13 +476,19 @@ elif complaint_go and complaint_text.strip():
     _render_complaint(complaint_text.strip())
 elif batch_go:
     _render_batch(uploaded, use_holdout, batch_limit, batch_llm)
+elif st.session_state.get("complaint_result"):
+    # Keep the last classification on screen so the HITL form can submit.
+    _render_complaint(
+        st.session_state.get("complaint_narrative", ""),
+        reuse_cached=True,
+    )
 else:
     st.info(
         "Pick an operation in the sidebar:\n\n"
         "- **① Model validation** — generate a second-line validation report for a model.\n"
         "- **② Complaint classification + risk intelligence** — assign a CFPB "
         "complaint to a regulation category, then ask whether it signals a "
-        "systemic control failure.\n"
+        "systemic control failure (HITL approve / override / escalate).\n"
         "- **③ Fraud monitoring** — score a single transaction in real time.\n"
         "- **④ Batch scoring (ingestion)** — upload a complaint CSV (or trigger the "
         "reserved 5% holdout) and download scored CSV with risk signals."

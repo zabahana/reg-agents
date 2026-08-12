@@ -71,17 +71,23 @@ python scripts/generate_e2e_model_development_doc.py # end-to-end MDD (md + pdf)
 ## Serving
 
 - MCP tools: `classify_complaint`, `assess_risk_intelligence`,
-  `list_regulation_taxonomy`, `sample_complaints`, `get_model_metrics`
-  (`complaint-mcp`, :9105)
+  `submit_hitl_decision`, `list_hitl_decisions`, `list_regulation_taxonomy`,
+  `sample_complaints`, `get_model_metrics` (`complaint-mcp`, :9105)
+- Stage-1 backends: in-process TF-IDF champion, or Triton
+  ``complaint_stage1`` when `TRITON_URL` is set
+  (`scripts/export_complaint_triton_model.py`)
+- Guardrails: native taxonomy/citation/input rails always on; optional NeMo
+  Guardrails via `COMPLAINT_NEMO_GUARDRAILS=1` +
+  `reg_agents/guardrails/complaint/`
+- HITL: approve / override / escalate → `data/hitl/complaint_decisions.jsonl`
+- LLM: hosted NIM or self-hosted NIM + TensorRT-LLM
+  (`k8s/optional/nim-tensorrt-llm.yaml`)
 - A2A agent: **Complaint Agent** (:8110) — classification + risk intelligence +
   analyst summary; Prometheus counters
-  `complaint_classifications_total{label,mode}` and
-  `complaint_risk_signals_total{systemic_signal,control_domain}`
-- UI: sidebar **② Complaint classification + risk intelligence** — pick a real
-  CFPB complaint, see the label, citation, systemic signal, control domain,
-  similar prior cases, local explanation, and committed accuracy metrics.
-- Batch ingestion: `python scripts/score_batch.py` (or UI **④ Batch
-  scoring**) scores a CSV — default: the reserved 5% holdout — and emits
-  classification columns plus `systemic_signal`, `risk_score`,
-  `control_domain`, `failure_mode`, `recommended_action`
-  (sample: `data/scoring/sample_scored_holdout.csv`).
+  `complaint_classifications_total{label,mode}`,
+  `complaint_risk_signals_total{systemic_signal,control_domain}`,
+  `complaint_hitl_pending_total{required}`
+- UI: sidebar **②** — classify, risk intel, HITL disposition form, metrics
+- Batch ingestion: `python scripts/score_batch.py` (or UI **④**) emits
+  classification + risk columns
+  (sample: `data/scoring/sample_scored_holdout.csv`)

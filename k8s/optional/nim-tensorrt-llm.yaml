@@ -1,0 +1,75 @@
+# -----------------------------------------------------------------------------
+# OPTIONAL: self-host NIM LLM optimized with TensorRT-LLM on GPU.
+#
+# NVIDIA NIM images for Llama ship with TensorRT-LLM engines under the hood.
+# Point the agents at this Service (OpenAI-compatible /v1) instead of the
+# hosted catalog:
+#
+#   In 01-config.yaml / .env:
+#     LLM_PROVIDER=nim
+#     NIM_BASE_URL=http://nim-trt-llm:8000/v1
+#     NIM_MODEL=meta/llama-3.1-8b-instruct
+#
+# Requires NGC pull secret + API key (same as nim-selfhosted.yaml).
+# Triton continues to serve fraud_xgb_gnn + complaint_stage1 on a separate GPU
+# or the same node if sized appropriately.
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nim-trt-llm
+  namespace: reg-agents
+  labels: { app: nim-trt-llm, part-of: reg-agents, engine: tensorrt-llm }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nim-trt-llm }
+  template:
+    metadata:
+      labels: { app: nim-trt-llm, part-of: reg-agents, engine: tensorrt-llm }
+    spec:
+      imagePullSecrets:
+        - name: ngc-secret
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: nim-trt-llm
+          # NIM packaging includes TensorRT-LLM optimized engines for this model.
+          image: nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
+          ports: [{ name: http, containerPort: 8000 }]
+          env:
+            - name: NGC_API_KEY
+              valueFrom: { secretKeyRef: { name: ngc-api, key: NGC_API_KEY } }
+            # Prefer TRT-LLM engine path when the image exposes the toggle.
+            - name: NIM_TENSORRT_ENGINE
+              value: "1"
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+              memory: 48Gi
+            requests:
+              nvidia.com/gpu: "1"
+              memory: 24Gi
+          volumeMounts:
+            - { name: nim-cache, mountPath: /opt/nim/.cache }
+          readinessProbe:
+            httpGet: { path: /v1/health/ready, port: 8000 }
+            initialDelaySeconds: 90
+            periodSeconds: 20
+      volumes:
+        - name: nim-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nim-trt-llm
+  namespace: reg-agents
+  labels: { app: nim-trt-llm, part-of: reg-agents }
+spec:
+  selector: { app: nim-trt-llm }
+  ports: [{ name: http, port: 8000, targetPort: 8000 }]

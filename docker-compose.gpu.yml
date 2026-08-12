@@ -61,15 +61,23 @@ services:
               capabilities: [gpu, utility]
     restart: unless-stopped
 
-  # Route the fraud MCP server to the GPU Triton instead of its local heuristic.
+  # Route fraud + complaint stage-1 MCP servers to GPU Triton.
   fraud-mcp:
     environment:
       TRITON_URL: http://triton:8000
     depends_on:
       - triton
 
+  complaint-mcp:
+    environment:
+      TRITON_URL: http://triton:8000
+      COMPLAINT_NEMO_GUARDRAILS: ${COMPLAINT_NEMO_GUARDRAILS:-0}
+    depends_on:
+      - triton
+
   # The UI only reads TRITON_URL to display the serving mode in its header
-  # (scoring itself goes through fraud-mcp); set it so the header reflects GPU.
+  # (scoring itself goes through MCP); set it so the header reflects GPU.
   ui:
     environment:
       TRITON_URL: http://triton:8000
+      COMPLAINT_NEMO_GUARDRAILS: ${COMPLAINT_NEMO_GUARDRAILS:-0}

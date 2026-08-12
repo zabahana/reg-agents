@@ -152,10 +152,9 @@ def run_complaint_classification(narrative: str) -> Dict[str, str]:
     """Classify a consumer complaint and assess systemic control-failure risk.
 
     Returns the raw two-stage model output JSON (`classification`, including
-    ``risk_intelligence``), a dedicated ``risk`` JSON artifact when the agent
-    is up, and the analyst-facing ``summary``. Falls back to in-process
-    classification when the complaint agent is not running (e.g. bare
-    ``streamlit run``).
+    ``risk_intelligence`` and ``hitl``), a dedicated ``risk`` JSON artifact
+    when the agent is up, and the analyst-facing ``summary``. Falls back to
+    in-process classification when the complaint agent is not running.
     """
     s = get_settings()
     agent = A2AClient(s.complaint_agent_url)
@@ -188,6 +187,47 @@ def run_complaint_classification(narrative: str) -> Dict[str, str]:
         except Exception as exc2:  # noqa: BLE001
             out["summary"] = f"[complaint classification unavailable: {exc2}]"
     return out
+
+
+def submit_complaint_hitl(
+    narrative: str,
+    classification_json: str,
+    disposition: str,
+    analyst: str = "analyst",
+    override_label: str = "",
+    rationale: str = "",
+) -> Dict[str, str]:
+    """Submit a HITL disposition via complaint-mcp, with in-process fallback."""
+    s = get_settings()
+    args = {
+        "narrative": narrative,
+        "disposition": disposition,
+        "analyst": analyst,
+        "override_label": override_label,
+        "rationale": rationale,
+        "classification_json": classification_json,
+    }
+    try:
+        from reg_agents.common.mcp_client import call_tool
+
+        raw = call_tool(s.complaint_mcp_url, "submit_hitl_decision", args)
+        return {"record": raw, "error": ""}
+    except Exception:  # noqa: BLE001
+        try:
+            from reg_agents.common import hitl as H
+
+            classification = json.loads(classification_json) if classification_json else {}
+            record = H.submit_decision(
+                narrative=narrative,
+                classification=classification,
+                disposition=disposition,
+                analyst=analyst,
+                override_label=override_label,
+                rationale=rationale,
+            )
+            return {"record": json.dumps(record, indent=2), "error": ""}
+        except Exception as exc2:  # noqa: BLE001
+            return {"record": "", "error": str(exc2)}
 
 
 def _safe(fn, label: str) -> str:

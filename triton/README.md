@@ -1,59 +1,59 @@
-# Triton model repository — fraud model
+# Triton model repository — fraud + complaint stage-1
 
-Triton serves the fraud model from this repository via the **FIL backend**
-(Forest Inference Library — XGBoost / LightGBM / sklearn & cuML forests).
+Triton serves two models from this repository:
 
 ```
 model_repository/
-  fraud_xgb_gnn/
-    config.pbtxt        # FIL backend config (committed)
+  fraud_xgb_gnn/          # FIL backend — fraud XGBoost
+    config.pbtxt
+    1/xgboost.json        # GENERATED
+  complaint_stage1/       # Python backend — CMPL-REG-24 gate
+    config.pbtxt
     1/
-      xgboost.json      # trained model — GENERATED, not committed
+      model.py            # committed
+      artifacts.joblib    # GENERATED (vectorizer + champion + threshold)
+      meta.json           # GENERATED
 ```
 
-## Generate the model
+## Generate models
 
 ```bash
-# On Linux / CI / GKE (has libgomp) or macOS with `brew install libomp`:
+# Fraud (FIL / XGBoost)
 python scripts/export_triton_model.py
 
-# Or generate inside the app image (no local OpenMP needed):
+# Complaint stage-1 (TF-IDF + logistic/XGBoost champion, train-fitted only)
+python scripts/export_complaint_triton_model.py
+
+# Or inside the app image:
 docker run --rm -v "$PWD/triton:/app/triton" reg-agents:latest \
   python scripts/export_triton_model.py
+docker run --rm -v "$PWD/triton:/app/triton" -v "$PWD/data:/app/data" \
+  reg-agents:latest python scripts/export_complaint_triton_model.py
 ```
 
-This trains an XGBoost classifier on `data/transactions/sample_transactions.csv`
-and writes `1/xgboost.json`. The feature order **must** match what the fraud MCP
-server sends (`reg_agents/mcp_servers/fraud_server.py`):
+Fraud feature order must match `fraud_server.py`:
+`[amount, is_foreign, merchant_risk, hour, velocity_24h]`.
 
+Complaint stage-1 accepts a raw **NARRATIVE** string and returns
+**PROBABILITY** / **THRESHOLD**. The TF-IDF vectorizer inside the artifact was
+fitted on the training fold only.
+
+## Serve
+
+```bash
+docker run --rm -p 8000:8000 -p 8002:8002 \
+  -v "$PWD/triton/model_repository:/models" \
+  nvcr.io/nvidia/tritonserver:24.08-py3 \
+  tritonserver --model-repository=/models
+
+export TRITON_URL=http://localhost:8000
 ```
-[amount, is_foreign, merchant_risk, hour, velocity_24h]
-```
 
-## Serve it
-
-- **Local (CPU) Triton for testing:**
-  ```bash
-  docker run --rm -p 8000:8000 -p 8002:8002 \
-    -v "$PWD/triton/model_repository:/models" \
-    nvcr.io/nvidia/tritonserver:24.08-py3 \
-    tritonserver --model-repository=/models
-  # then point the app at it:
-  export TRITON_URL=http://localhost:8000
-  ```
-  (config.pbtxt requests a GPU instance group; for CPU-only local testing change
-  `instance_group` kind to `KIND_CPU`.)
-
-- **GKE:** upload `model_repository/` to a GCS bucket and mount it at `/models`
-  in the Triton pod (gcsfuse CSI driver) or copy into a PVC. See
-  [`../k8s/README.md`](../k8s/README.md).
-
-Until a model is served, the fraud MCP server automatically falls back to its
-transparent local heuristic and reports `backend: heuristic-local`.
+On Brev / GPU compose (`docker-compose.gpu.yml`) both `fraud-mcp` and
+`complaint-mcp` receive `TRITON_URL=http://triton:8000`. Without Triton, each
+MCP server falls back locally (`heuristic-local` / `local-sklearn`).
 
 ## Metrics
 
-Triton exposes Prometheus metrics on port **8002** at `/metrics` (inference
-count, queue/compute latency, success/failure). These are scraped by the
-`ServiceMonitor` in [`../k8s/monitoring/`](../k8s/monitoring/) and shown in
-Grafana.
+Triton Prometheus metrics on port **8002** (`/metrics`) are scraped by the
+compose / GKE monitoring stack.

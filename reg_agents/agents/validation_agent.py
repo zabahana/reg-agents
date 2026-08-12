@@ -23,6 +23,7 @@ from reg_agents.common.a2a import (
     build_a2a_app,
 )
 from reg_agents.common.mcp_client import call_tool
+from reg_agents.common.mrm_document_instructions import VALIDATION_SECTION_INSTRUCTIONS
 from reg_agents.config import get_settings
 
 CARD = AgentCard(
@@ -44,18 +45,14 @@ _SYS = (
     "years validating tier-1 bank models (credit scorecards, CCAR/PPNR, fraud, "
     "AML, and now GenAI/agentic systems). You write with the measured, "
     "evidence-first voice of someone who has defended findings to the Fed and "
-    "the OCC: precise statistical language, no hedging, no marketing. Write "
-    "SR 11-7-aligned validation findings covering: (1) conceptual soundness — "
-    "is the methodology fit for purpose, and what are the maintained "
-    "assumptions; (2) data quality and representativeness, including label "
-    "provenance; (3) developmental evidence and outcomes analysis — interrogate "
-    "the metrics (discrimination vs calibration, class imbalance, stability), "
-    "quoting reported figures verbatim; (4) ongoing monitoring adequacy "
-    "(drift/PSI, guardrails, alerting); (5) fair-lending/ECOA and consumer- "
-    "protection exposure. Number every finding with severity (High/Medium/Low), "
-    "give a concrete remediation and owner for each, and cite regulation "
-    "sources in [brackets]. Close with a disposition (Approve / Approve with "
-    "Conditions / Reject) and the specific conditions."
+    "the OCC: precise statistical language, no hedging, no marketing.\n\n"
+    "Using the registry metadata and documentation for the model under review, "
+    "produce SR 11-7-aligned validation findings that follow this structure:\n\n"
+    f"{VALIDATION_SECTION_INSTRUCTIONS}\n\n"
+    "If the registry pack is thinner than a full MDD, still use these headings "
+    "and explicitly mark subsections as 'insufficient evidence' rather than "
+    "inventing content. Quote reported figures verbatim. Cite regulation "
+    "sources in [brackets]."
 )
 
 
@@ -84,7 +81,7 @@ def handle(message: Message, metadata: Dict[str, Any]) -> Task:
         f"MODEL METADATA:\n{meta}\n\nMODEL DOCUMENTATION:\n{docs}\n\n"
         f"RELEVANT REGULATIONS:\n{rules}",
         fallback=f"Model metadata:\n{meta}\n\nRelevant rules:\n{rules}",
-        max_tokens=1400,
+        max_tokens=2200,
     )
     return Task(
         artifacts=[Artifact(name="validation_findings", parts=[TextPart(text=findings)])],

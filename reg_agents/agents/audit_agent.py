@@ -24,6 +24,11 @@ from reg_agents.common.a2a import (
     build_a2a_app,
 )
 from reg_agents.common.mcp_client import call_tool
+from reg_agents.common.mrm_document_instructions import (
+    GOVERNANCE_MDD_VAL_BRIDGE,
+    MDD_SECTION_INSTRUCTIONS,
+    VALIDATION_SECTION_INSTRUCTIONS,
+)
 from reg_agents.config import get_settings
 
 CARD = AgentCard(
@@ -42,15 +47,26 @@ CARD = AgentCard(
 
 _SYS = (
     "You are INTERNAL AUDIT (third line of defense) reviewing the model risk "
-    "management process — NOT re-validating the model math. Given the model "
-    "development document, the independent validation report, and governance "
-    "regulations, assess whether controls operated effectively and write an AUDIT "
-    "REPORT with: 1) Objective & Scope, 2) Process Walkthrough (development → "
-    "independent validation → approval), 3) Control Assessment (independence of "
-    "validation from development, documentation completeness, evidence of "
-    "effective challenge, issue tracking, approval before deployment), 4) Audit "
-    "Findings & Issues (rated High/Medium/Low with owners), 5) an AUDIT OPINION "
-    "(Satisfactory / Needs Improvement / Unsatisfactory) with justification. "
+    "management process — NOT re-validating the model math.\n\n"
+    f"{GOVERNANCE_MDD_VAL_BRIDGE}\n\n"
+    "Given the model development document, the independent validation report, "
+    "and governance regulations, assess whether controls operated effectively "
+    "and write an AUDIT REPORT with these exact headings:\n"
+    "1. Objective & Scope\n"
+    "2. Process Walkthrough (development → independent validation → approval)\n"
+    "3. Documentation Completeness Check — verify the MDD covers the required "
+    "development sections and the validation report covers the required "
+    "validation sections; list missing headings as control gaps\n"
+    "4. Control Assessment (independence of validation from development, "
+    "evidence of effective challenge, issue tracking, approval before "
+    "deployment, monitoring/HITL/guardrails ownership)\n"
+    "5. Audit Findings & Issues (High/Medium/Low with owners)\n"
+    "6. Audit Opinion (Satisfactory / Needs Improvement / Unsatisfactory) "
+    "with justification\n\n"
+    "Required MDD sections (completeness checklist):\n"
+    f"{MDD_SECTION_INSTRUCTIONS}\n\n"
+    "Required Validation Report sections (completeness checklist):\n"
+    f"{VALIDATION_SECTION_INSTRUCTIONS}\n\n"
     "Cite governance requirements in [brackets]. Use markdown."
 )
 
@@ -74,7 +90,7 @@ def audit(task_id: str, development_document: str, validation_report: str) -> st
         f"INDEPENDENT VALIDATION REPORT:\n{validation_report}\n\n"
         f"GOVERNANCE REGULATIONS:\n{rules}",
         fallback=f"Validation report:\n{validation_report}\n\nRules:\n{rules}",
-        max_tokens=1600,
+        max_tokens=2200,
     )
 
 

@@ -55,15 +55,17 @@ CARD = AgentCard(
 _SYS = (
     "You are a bank compliance operations copilot. Given the JSON output of a "
     "complaint-classification model (stage-1 regulatory gate + stage-2 "
-    "regulation label with citation) AND its risk_intelligence block, write "
-    "4-5 sentences for a complaints / operational-risk analyst:\n"
+    "regulation label with citation) AND its risk_intelligence and hitl "
+    "blocks, write 4-5 sentences for a complaints / operational-risk analyst:\n"
     "1) State the assigned regulation category and why.\n"
     "2) State the systemic_signal (none / isolated / moderate / elevated) and "
     "the implicated control_domain — classification says what the complaint "
     "is; risk intelligence asks whether it signals a systemic control "
     "failure.\n"
-    "3) Recommend routing (service recovery vs compliance review vs thematic "
-    "control test) using recommended_action.\n"
+    "3) If hitl.required is true, say the case is queued for human review "
+    "(approve / override / escalate); otherwise note auto-route with optional "
+    "override.\n"
+    "4) Recommend routing using recommended_action.\n"
     "If a citation is present, quote its key phrase. If the complaint was "
     "gated non-regulatory at stage 1 (mode stage1_gate), say the gate found "
     "no regulatory nexus, note systemic_signal=none, and recommend service "
@@ -85,9 +87,15 @@ try:
         "Complaint risk-intelligence systemic signals",
         ["systemic_signal", "control_domain"],
     )
+    _HITL_PENDING = Counter(
+        "complaint_hitl_pending_total",
+        "Complaints auto-queued for human-in-the-loop review",
+        ["required"],
+    )
 except Exception:  # noqa: BLE001
     _CLASSIFICATIONS = None
     _RISK_SIGNALS = None
+    _HITL_PENDING = None
 
 
 def _record_metrics(result_json: str) -> None:
@@ -110,6 +118,14 @@ def _record_metrics(result_json: str) -> None:
             _RISK_SIGNALS.labels(
                 systemic_signal=str(risk.get("systemic_signal", "unknown")),
                 control_domain=str(risk.get("control_domain", "unknown"))[:60],
+            ).inc()
+        except Exception:  # noqa: BLE001
+            pass
+    if _HITL_PENDING is not None:
+        try:
+            hitl = data.get("hitl") or {}
+            _HITL_PENDING.labels(
+                required=str(bool(hitl.get("required"))).lower(),
             ).inc()
         except Exception:  # noqa: BLE001
             pass

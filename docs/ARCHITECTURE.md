@@ -25,12 +25,13 @@ Desktop) can use them.
   `get_champion`. Trains candidate models and selects a champion. scikit-learn
   locally; **RAPIDS cuML / XGBoost** analog on GPU.
 - **complaint-mcp** — `classify_complaint`, `assess_risk_intelligence`,
-  `list_regulation_taxonomy`, `sample_complaints`, `get_model_metrics`.
-  Two-stage complaint→regulation classification over real CFPB data (binary
-  gate + RAG/LLM labeling with citations), plus a **risk intelligence** layer
-  that asks whether the complaint signals a systemic control failure. GPU
-  upgrade path: BERT-class encoder fine-tuned with NeMo, served via Triton;
-  curation at scale via **NeMo Data Curator**.
+  `submit_hitl_decision`, `list_hitl_decisions`, `list_regulation_taxonomy`,
+  `sample_complaints`, `get_model_metrics`. Two-stage complaint→regulation
+  classification over real CFPB data (binary gate on local sklearn or Triton
+  ``complaint_stage1`` + RAG/LLM labeling with citations), **risk
+  intelligence**, native + optional **NeMo Guardrails**, and a **HITL**
+  approve/override/escalate audit log. LLM path can target self-hosted NIM
+  with **TensorRT-LLM** (`k8s/optional/nim-tensorrt-llm.yaml`).
 
 ### A2A agents (Agent-to-Agent protocol)
 Each agent publishes an **Agent Card** at `/.well-known/agent-card.json` and
@@ -175,7 +176,10 @@ sequenceDiagram
 | Vector search | FAISS (CPU) / numpy | Milvus + cuVS (GPU) |
 | Fraud model | heuristic | Triton (GNN+XGBoost) |
 | Model bake-off | scikit-learn (CPU) | RAPIDS cuML / XGBoost (GPU) |
-| Complaint stage 1 | TF-IDF + logistic/XGBoost (CPU) | NeMo-fine-tuned BERT on Triton |
+| Complaint stage 1 | TF-IDF + logistic/XGBoost (local) | Triton `complaint_stage1` (Python backend); BERT upgrade path |
+| Complaint LLM safety | Native taxonomy/citation rails | + optional NeMo Guardrails (`COMPLAINT_NEMO_GUARDRAILS=1`) |
+| Complaint HITL | Approve / override / escalate audit log | Same |
+| LLM engine | Hosted NIM or OpenAI | Self-hosted NIM + TensorRT-LLM (`k8s/optional/nim-tensorrt-llm.yaml`) |
 | Complaint curation | pandas filters/dedup | NeMo Data Curator (RAPIDS) |
 | Orchestration | same code | same code |
 

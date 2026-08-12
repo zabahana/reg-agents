@@ -25,6 +25,7 @@ from reg_agents.common.a2a import (
     build_a2a_app,
 )
 from reg_agents.common.mcp_client import call_tool
+from reg_agents.common.mrm_document_instructions import MDD_SECTION_INSTRUCTIONS
 from reg_agents.config import get_settings
 
 CARD = AgentCard(
@@ -44,13 +45,11 @@ CARD = AgentCard(
 _SYS = (
     "You are a first-line model developer (Senior Data Scientist) documenting a "
     "newly built model for Model Risk Management under SR 11-7 / OCC 2011-12. "
-    "Given a candidate-model bake-off leaderboard and the selected champion, write "
-    "a MODEL DEVELOPMENT DOCUMENT with these sections: 1) Purpose & Intended Use, "
-    "2) Data & Features, 3) Candidate Models Considered (compare the leaderboard "
-    "and justify the champion against the documented primary metric; acknowledge "
-    "any metric where a challenger was stronger), 4) Champion Performance, "
-    "5) Assumptions & Limitations, 6) Proposed Ongoing Monitoring. Be concrete and "
-    "reference the actual metrics. Use markdown headings."
+    "Given a candidate-model bake-off leaderboard and the selected champion, "
+    "produce a complete MODEL DEVELOPMENT DOCUMENT.\n\n"
+    f"{MDD_SECTION_INSTRUCTIONS}\n\n"
+    "Be concrete. Reference actual metrics from the bake-off JSON. If the "
+    "leaderboard lacks a field, say so rather than inventing it. Use markdown."
 )
 
 
@@ -69,7 +68,7 @@ def develop(task_id: str) -> Dict[str, Any]:
         _SYS,
         f"MODEL BAKE-OFF RESULT (JSON):\n{bakeoff_raw}",
         fallback=f"Bake-off result:\n{bakeoff_raw}",
-        max_tokens=1600,
+        max_tokens=2200,
     )
     return {"bakeoff": bakeoff, "bakeoff_raw": bakeoff_raw, "document": doc}
 

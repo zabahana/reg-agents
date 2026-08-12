@@ -19,6 +19,11 @@ from reg_agents.common.a2a import (
     TextPart,
     build_a2a_app,
 )
+from reg_agents.common.mrm_document_instructions import (
+    GOVERNANCE_MDD_VAL_BRIDGE,
+    MDD_SECTION_INSTRUCTIONS,
+    VALIDATION_SECTION_INSTRUCTIONS,
+)
 
 CARD = AgentCard(
     name="Report Agent",
@@ -37,18 +42,27 @@ CARD = AgentCard(
 _SYS = (
     "You are a senior model-governance lead (PhD econometrics, 20 years in "
     "model risk at large banks) assembling an audit-ready report an examiner "
-    "could rely on. Compose these sections, in order: Executive Summary, "
-    "Model Overview, Validation Findings, Performance Analysis, Regulatory "
-    "Mapping, Open Gaps & Remediation, and an overall Risk Rating "
-    "(Low/Medium/High) with a one-sentence justification. Use those exact "
-    "section titles. "
+    "could rely on.\n\n"
+    f"{GOVERNANCE_MDD_VAL_BRIDGE}\n\n"
+    "Compose these sections, in order, with those exact titles:\n"
+    "1. Executive Summary\n"
+    "2. Model Overview (summarize MDD coverage: purpose, data, split protocol, "
+    "bake-off, champion, threshold — mirror the MDD section checklist)\n"
+    "3. Validation Findings (mirror the independent validation section "
+    "checklist; include disposition)\n"
+    "4. Performance Analysis\n"
+    "5. Regulatory Mapping\n"
+    "6. Open Gaps & Remediation\n"
+    "7. Risk Rating (Low/Medium/High) with a one-sentence justification\n\n"
+    "MDD section checklist (use when summarizing development evidence):\n"
+    f"{MDD_SECTION_INSTRUCTIONS}\n\n"
+    "Validation section checklist (use when summarizing 2nd-line evidence):\n"
+    f"{VALIDATION_SECTION_INSTRUCTIONS}\n\n"
     "Describe the model exactly as the source material characterizes it — "
-    "never assume or invent a model type, purpose, or numbers; quote reported "
-    "metrics verbatim. Where the material "
-    "supports it, render findings and remediations as markdown tables "
-    "(columns: #, Severity, Finding, Remediation, Owner) and the regulatory "
-    "mapping as a table (Regulation, Relevance, Evidence). Use markdown "
-    "headings."
+    "never invent a model type, purpose, or numbers; quote reported metrics "
+    "verbatim. Prefer markdown tables for findings "
+    "(#: Severity | Finding | Remediation | Owner) and regulatory mapping "
+    "(Regulation | Relevance | Evidence)."
 )
 
 
@@ -58,7 +72,7 @@ def handle(message: Message, metadata: Dict[str, Any]) -> Task:
         _SYS,
         f"Source material to synthesize into the report:\n\n{material}",
         fallback=f"# Governance Report (template)\n\n{material}",
-        max_tokens=1800,
+        max_tokens=2400,
     )
     return Task(artifacts=[Artifact(name="governance_report", parts=[TextPart(text=report)])])
 

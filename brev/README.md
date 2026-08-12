@@ -76,12 +76,19 @@ docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" fraud-mcp \
 
 ## 3b. Or just run the wrapper
 
-`scripts/brev_up.sh` does steps 3–4 (build → export model → up with GPU +
-monitoring) and waits for Triton:
+`scripts/brev_up.sh` does steps 3–4 (build → export fraud model → up with GPU +
+monitoring) and waits for Triton. Also export the complaint stage-1 Triton
+artifact so `complaint-mcp` can score on GPU:
 
 ```bash
 ./scripts/brev_up.sh              # or --no-build to reuse the image
+docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" \
+  -v "$PWD/data:/app/data" complaint-mcp \
+  python scripts/export_complaint_triton_model.py
 ```
+
+Optional: set `COMPLAINT_NEMO_GUARDRAILS=1` in `.env` after installing
+`nemoguardrails` to enable Colang rails on the complaint LLM path.
 
 ## 4. Bring up the full stack with GPU Triton + monitoring
 

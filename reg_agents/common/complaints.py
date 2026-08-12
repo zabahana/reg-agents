@@ -495,8 +495,8 @@ def _stage1_cached():
     return train_stage1()
 
 
-def classify_binary(text: str) -> Dict:
-    """Stage 1: probability the complaint is regulatory."""
+def _classify_binary_local(text: str) -> Dict:
+    """In-process stage-1 gate (train-fitted TF-IDF + champion)."""
     s1 = _stage1_cached()
     xt = s1["vectorizer"].transform([text])
     prob = float(s1["models"][s1["champion"]].predict_proba(xt)[0, 1])
@@ -505,7 +505,60 @@ def classify_binary(text: str) -> Dict:
         "probability": round(prob, 4),
         "threshold": s1["threshold"],
         "model": s1["champion"],
+        "backend": "local-sklearn",
     }
+
+
+def _classify_binary_triton(text: str, triton_url: str) -> Dict:
+    """Score stage 1 via Triton Python backend ``complaint_stage1``."""
+    import httpx
+
+    # Triton HTTP JSON: BYTES/STRING elements as UTF-8 strings.
+    payload = {
+        "inputs": [
+            {
+                "name": "NARRATIVE",
+                "shape": [1, 1],
+                "datatype": "BYTES",
+                "data": [text],
+            }
+        ]
+    }
+    url = f"{triton_url.rstrip('/')}/v2/models/complaint_stage1/infer"
+    with httpx.Client(timeout=15.0) as client:
+        resp = client.post(url, json=payload)
+        resp.raise_for_status()
+        body = resp.json()
+    outputs = {o["name"]: o["data"] for o in body.get("outputs", [])}
+    prob = float(outputs["PROBABILITY"][0])
+    thr = float(outputs.get("THRESHOLD", [0.5])[0])
+    return {
+        "is_regulatory": prob >= thr,
+        "probability": round(prob, 4),
+        "threshold": thr,
+        "model": "complaint_stage1",
+        "backend": "triton-gpu",
+    }
+
+
+def classify_binary(text: str) -> Dict:
+    """Stage 1: probability the complaint is regulatory.
+
+    Prefers Triton-served ``complaint_stage1`` when ``TRITON_URL`` is set;
+    falls back to the in-process train-fitted TF-IDF champion.
+    """
+    from reg_agents.config import get_settings
+
+    settings = get_settings()
+    if settings.triton_url:
+        try:
+            return _classify_binary_triton(text, settings.triton_url)
+        except Exception as exc:  # noqa: BLE001
+            local = _classify_binary_local(text)
+            local["backend"] = f"local-sklearn (triton error: {exc})"
+            local["triton_fallback"] = True
+            return local
+    return _classify_binary_local(text)
 
 
 # --------------------------------------------------------------------------- #
@@ -615,6 +668,7 @@ def keyword_classify(text: str) -> Tuple[str, float]:
 
 def classify_regulation(text: str, retriever=None, use_llm: bool = True) -> Dict:
     """Stage 2: label the regulation category with a cited excerpt."""
+    from reg_agents.common.complaint_guardrails import check_stage2_output
     from reg_agents.common.corpus import RegulationRetriever
 
     retriever = retriever or _default_retriever()
@@ -630,6 +684,7 @@ def classify_regulation(text: str, retriever=None, use_llm: bool = True) -> Dict
         }
         for h in hits
     ]
+    allowed_sources = [e["source"] for e in excerpts if e.get("source")]
 
     result: Dict = {"mode": "fallback"}
     if use_llm:
@@ -665,6 +720,10 @@ def classify_regulation(text: str, retriever=None, use_llm: bool = True) -> Dict
         result.update({"label": label, "confidence": conf,
                        "rationale": "Keyword-based fallback classification (no LLM)."})
 
+    guardrail_hits = check_stage2_output(result, allowed_sources)
+    if guardrail_hits:
+        result["guardrails"] = guardrail_hits
+
     reg = REGULATIONS[result["label"]]
     cite_ref = str(result.get("citation_source", "")).lower()
     cited = next((e for e in excerpts if e["source"].lower() in cite_ref),
@@ -693,16 +752,22 @@ def _default_retriever():
 
 
 def classify_complaint(text: str, use_llm: bool = True) -> Dict:
-    """Full two-stage pipeline for one complaint, plus risk intelligence.
+    """Full two-stage pipeline for one complaint, plus risk intelligence + HITL.
 
     Stage 1/2 remain the model anchor (what the complaint *is*). The
     ``risk_intelligence`` block asks whether the same narrative signals a
-    systemic control failure (see ``reg_agents.common.risk_intelligence``).
+    systemic control failure. Input guardrails (native + optional NeMo
+    Guardrails) run first; HITL metadata flags cases needing analyst review.
     """
-    stage1 = classify_binary(text)
-    out: Dict = {"stage1": stage1}
+    from reg_agents.common.complaint_guardrails import check_input
+    from reg_agents.common.hitl import attach_hitl_status
+    from reg_agents.common.risk_intelligence import assess_risk_intelligence
+
+    cleaned, input_rails = check_input(text)
+    stage1 = classify_binary(cleaned)
+    out: Dict = {"stage1": stage1, "guardrails": {"input": input_rails}}
     if stage1["is_regulatory"]:
-        out["stage2"] = classify_regulation(text, use_llm=use_llm)
+        out["stage2"] = classify_regulation(cleaned, use_llm=use_llm)
     else:
         reg = REGULATIONS[NON_REGULATORY]
         out["stage2"] = {
@@ -713,11 +778,11 @@ def classify_complaint(text: str, use_llm: bool = True) -> Dict:
             "regulation_description": reg.description,
             "citation": None,
         }
-    from reg_agents.common.risk_intelligence import assess_risk_intelligence
-
     out["risk_intelligence"] = assess_risk_intelligence(
-        text, out, use_llm=use_llm,
+        cleaned, out, use_llm=use_llm,
     )
+    attach_hitl_status(out)
+    out["narrative_used"] = cleaned[:400]
     return out
 
 

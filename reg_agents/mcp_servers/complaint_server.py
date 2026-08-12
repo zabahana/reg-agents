@@ -1,10 +1,9 @@
 """MCP server: complaint → regulation classification tools.
 
 Fronts the two-stage complaint model (reg_agents/common/complaints.py):
-stage 1 = TF-IDF binary "regulatory or not" champion; stage 2 = RAG over the
-regulation corpus + LLM reasoning with few-shot examples, returning a label
-from the 24-category taxonomy plus a cited excerpt; then a risk-intelligence
-layer that asks whether the complaint signals a systemic control failure.
+stage 1 = TF-IDF binary gate (local or Triton ``complaint_stage1``);
+stage 2 = RAG + LLM with citations; risk intelligence; NeMo/native
+guardrails; and HITL disposition tools for analyst approve/override/escalate.
 
 Run:  python -m reg_agents.mcp_servers.complaint_server  (PORT default 9105)
 """
@@ -24,12 +23,9 @@ mcp = FastMCP("complaints", host="0.0.0.0", port=int(os.getenv("PORT", "9105")))
 def classify_complaint(narrative: str, use_llm: bool = True) -> str:
     """Classify a consumer-complaint narrative.
 
-    Stage 1 decides regulatory vs not; if regulatory, stage 2 assigns one of
-    the 24 regulation categories with a confidence, rationale, and a citation
-    from the retrieved policy corpus. A risk_intelligence block then assesses
-    whether the narrative signals a systemic control failure (control domain,
-    prior-case similarity, local TF-IDF explanation, recommended action).
-    Returns JSON.
+    Stage 1 (local sklearn or Triton) decides regulatory vs not; stage 2
+    assigns a regulation category with citation; risk_intelligence assesses
+    systemic control failure; hitl flags pending analyst review. Returns JSON.
     """
     from reg_agents.common import complaints as C
 
@@ -42,13 +38,56 @@ def assess_risk_intelligence(narrative: str, use_llm: bool = True) -> str:
     """Assess whether a complaint signals a systemic control failure.
 
     Runs the two-stage classifier as the model anchor, then returns only the
-    risk_intelligence block (JSON). Prefer classify_complaint when you also
-    need the regulation label and citation.
+    risk_intelligence block (JSON).
     """
     from reg_agents.common import complaints as C
 
     result = C.classify_complaint(narrative, use_llm=use_llm)
     return json.dumps(result.get("risk_intelligence", {}), indent=2)
+
+
+@mcp.tool()
+def submit_hitl_decision(
+    narrative: str,
+    disposition: str,
+    analyst: str = "analyst",
+    override_label: str = "",
+    rationale: str = "",
+    classification_json: str = "",
+) -> str:
+    """Record a human-in-the-loop disposition for a complaint.
+
+    disposition: approve | override | escalate.
+    For override, pass override_label as a taxonomy code (e.g. FCRA_ACCURACY).
+    If classification_json is empty, the narrative is re-classified first.
+    """
+    from reg_agents.common import complaints as C
+    from reg_agents.common import hitl as H
+
+    if classification_json.strip():
+        classification = json.loads(classification_json)
+    else:
+        classification = C.classify_complaint(narrative, use_llm=False)
+    record = H.submit_decision(
+        narrative=narrative,
+        classification=classification,
+        disposition=disposition,
+        analyst=analyst,
+        override_label=override_label,
+        rationale=rationale,
+    )
+    return json.dumps(record, indent=2)
+
+
+@mcp.tool()
+def list_hitl_decisions(limit: int = 25) -> str:
+    """List recent HITL dispositions from the audit log (JSON)."""
+    from reg_agents.common import hitl as H
+
+    return json.dumps(
+        {"counts": H.decision_counts(), "decisions": H.list_decisions(limit)},
+        indent=2,
+    )
 
 
 @mcp.tool()

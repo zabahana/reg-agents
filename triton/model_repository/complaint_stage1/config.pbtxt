@@ -1,0 +1,28 @@
+# Triton Python backend: stage-1 complaint regulatory gate (CMPL-REG-24).
+# Input is the raw narrative (BYTES); output is P(regulatory) in [0,1].
+# Artifacts (vectorizer + champion model + threshold) are written by
+# scripts/export_complaint_triton_model.py into version directory 1/.
+name: "complaint_stage1"
+backend: "python"
+max_batch_size: 8
+input [
+  {
+    name: "NARRATIVE"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  }
+]
+output [
+  {
+    name: "PROBABILITY"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  },
+  {
+    name: "THRESHOLD"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  }
+]
+instance_group [{ kind: KIND_CPU }]
+dynamic_batching { max_queue_delay_microseconds: 2000 }
