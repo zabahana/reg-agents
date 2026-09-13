@@ -76,15 +76,12 @@ docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" fraud-mcp \
 
 ## 3b. Or just run the wrapper
 
-`scripts/brev_up.sh` does steps 3–4 (build → export fraud model → up with GPU +
-monitoring) and waits for Triton. Also export the complaint stage-1 Triton
-artifact so `complaint-mcp` can score on GPU:
+`scripts/brev_up.sh` does steps 3–4 (build → export both Triton models → up
+with GPU + monitoring) and fails with the Triton logs if the server does not
+become ready:
 
 ```bash
 ./scripts/brev_up.sh              # or --no-build to reuse the image
-docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" \
-  -v "$PWD/data:/app/data" complaint-mcp \
-  python scripts/export_complaint_triton_model.py
 ```
 
 Optional: set `COMPLAINT_NEMO_GUARDRAILS=1` in `.env` after installing
@@ -153,6 +150,11 @@ docker compose exec lifecycle-orchestrator python scripts/lifecycle_run.py --tas
 ```
 The fraud MCP response `backend` should now read **`triton-gpu`**.
 
+For inference optimization, deploy a self-hosted NIM/TensorRT-LLM profile and
+run the repeatable FP16/INT8 and KV-cache measurements in
+[`docs/optimization/README.md`](../docs/optimization/README.md). Hosted NIM is
+ideal for the demo but does not let you select a quantized engine.
+
 ---
 
 ## 6. Stop / save cost
@@ -162,6 +164,29 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile monitor
 brev stop reg-agents     # stop billing; `brev start` to resume
 brev delete reg-agents   # tear down entirely
 ```
+
+---
+
+## Optional: TensorRT bias+activation fusion mini-demo
+
+Interview / DevRel talking point (**Layer Fusion**): TensorRT’s builder merges
+Gemm/Conv + Bias + ReLU into one kernel — you usually don’t hand-write that
+fusion. Custom CUDA from Python (CuPy/Numba) is a separate path.
+
+Self-contained script (mirrored under study pack):
+
+```bash
+# On a Brev GPU shell (Docker + NVIDIA toolkit already present):
+cd scripts/tensorrt_fusion_demo   # or ~/NVIDIA-study/demos/tensorrt_layer_fusion
+
+docker run --gpus all -it --rm -v "$PWD":/demo -w /demo \
+  nvcr.io/nvidia/tensorrt:24.08-py3 bash
+# inside:
+pip install --quiet torch onnx && python demo_bias_act_fusion.py
+```
+
+Full notes: `scripts/tensorrt_fusion_demo/README.md` and
+`~/NVIDIA-study/demos/tensorrt_layer_fusion/README.md`.
 
 ---
 

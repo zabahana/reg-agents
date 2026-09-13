@@ -32,17 +32,30 @@ echo "==> Generating Triton fraud model (config.pbtxt + xgboost.json)..."
 docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" fraud-mcp \
   python scripts/export_triton_model.py
 
+echo "==> Generating complaint stage-1 Triton artifact..."
+docker compose run --rm --no-deps -v "$PWD/triton:/app/triton" \
+  -v "$PWD/data:/app/data" complaint-mcp \
+  python scripts/export_complaint_triton_model.py
+
 echo "==> Starting stack (GPU Triton + DCGM + Prometheus + Grafana)..."
 "${COMPOSE[@]}" up -d
 
 echo "==> Waiting for Triton to become ready..."
+triton_ready=0
 for _ in $(seq 1 40); do
   if curl -fsS localhost:8000/v2/health/ready >/dev/null 2>&1; then
     echo "    Triton ready."
+    triton_ready=1
     break
   fi
   sleep 5
 done
+
+if [ "$triton_ready" -ne 1 ]; then
+  echo "!! Triton was not ready after 200 seconds. Recent logs:" >&2
+  "${COMPOSE[@]}" logs --tail 100 triton >&2
+  exit 1
+fi
 
 cat <<'EOF'
 

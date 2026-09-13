@@ -17,11 +17,18 @@
 services:
   triton:
     image: nvcr.io/nvidia/tritonserver:24.08-py3
-    command: >
-      tritonserver
-      --model-repository=/models
-      --model-control-mode=poll
-      --allow-metrics=true
+    # Stock Triton image has no joblib/sklearn; complaint_stage1 Python backend
+    # needs them to load artifacts.joblib. Install then start. --exit-on-error=false
+    # keeps fraud_xgb_gnn up if complaint_stage1 still fails.
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - >
+        pip3 install --no-cache-dir -q -r /models/complaint_stage1/requirements.txt &&
+        tritonserver
+        --model-repository=/models
+        --model-control-mode=poll
+        --allow-metrics=true
+        --exit-on-error=false
     volumes:
       - ./triton/model_repository:/models:ro
     ports:

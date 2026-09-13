@@ -47,6 +47,14 @@ spec:
             # Prefer TRT-LLM engine path when the image exposes the toggle.
             - name: NIM_TENSORRT_ENGINE
               value: "1"
+            # Bound context and concurrent sequences so TensorRT-LLM can size its
+            # paged KV cache predictably on a single L4. These NIM overrides are
+            # profile-dependent; confirm acceptance in startup logs before a
+            # production rollout.
+            - name: NIM_MAX_MODEL_LEN
+              value: "4096"
+            - name: NIM_MAX_BATCH_SIZE
+              value: "8"
           resources:
             limits:
               nvidia.com/gpu: "1"

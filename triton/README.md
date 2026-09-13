@@ -38,6 +38,12 @@ Complaint stage-1 accepts a raw **NARRATIVE** string and returns
 **PROBABILITY** / **THRESHOLD**. The TF-IDF vectorizer inside the artifact was
 fitted on the training fold only.
 
+The stock `nvcr.io/nvidia/tritonserver` image does **not** include `joblib` /
+`scikit-learn`. `docker-compose.gpu.yml` pip-installs
+`complaint_stage1/requirements.txt` into the container before `tritonserver`
+starts. Without that, `complaint_stage1` fails to load and Triton exits
+(`failed to load all models`) even though `fraud_xgb_gnn` is READY.
+
 ## Serve
 
 ```bash

@@ -15,6 +15,11 @@ Prometheus + Grafana (kube-prometheus-stack) give you observability.
 ```
 
 To self-host NIM on GPU instead, see [`optional/nim-selfhosted.yaml`](optional/nim-selfhosted.yaml).
+For the TensorRT-LLM profile with bounded context/concurrency (which controls
+the managed KV-cache capacity), use
+[`optional/nim-tensorrt-llm.yaml`](optional/nim-tensorrt-llm.yaml). See the
+repeatable FP16/INT8, KV-cache, and pruning acceptance criteria in
+[`docs/optimization/README.md`](../docs/optimization/README.md).
 
 ## 0. Prereqs
 - `gcloud`, `kubectl`, `helm`, Docker

@@ -1,0 +1,5 @@
+# Installed into the Triton Python backend before tritonserver starts
+# (see docker-compose.gpu.yml). Needed to unpickle artifacts.joblib.
+joblib==1.4.2
+scikit-learn==1.5.2
+numpy==1.26.4
