@@ -11,6 +11,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Some pre-release Docker Compose builds crash with "concurrent map writes"
+# while recreating a large dependency graph. Serialize this launch by default;
+# operators may override it when their Compose version is known-good.
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
+
 BASE="docker-compose.yml"
 GPU="docker-compose.gpu.yml"
 COMPOSE=(docker compose -f "$BASE" -f "$GPU" --profile monitoring)
