@@ -1,0 +1,40 @@
+# Optional GPU overlay for controlled NIM/TensorRT-LLM experiments on Brev.
+#
+# Start it with:
+#   NGC_API_KEY=... NIM_MODEL_PROFILE=<profile-id> \
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+#     -f docker-compose.nim-selfhosted.yml --profile monitoring up -d nim-llm
+#
+# Discover profile IDs from the exact image before choosing one:
+#   docker run --rm --gpus all -e NGC_API_KEY \
+#     nvcr.io/nim/meta/llama-3.1-8b-instruct:latest list-model-profiles
+#
+# NIM selects a TensorRT-LLM engine from the specified profile. Never label a
+# profile FP16 or INT8 until its list-model-profiles output confirms precision.
+
+services:
+  nim-llm:
+    image: nvcr.io/nim/meta/llama-3.1-8b-instruct:latest
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY:?Set NGC_API_KEY in the shell or .env}
+      # Required for a controlled profile comparison. Leave no default so a
+      # measurement cannot accidentally use a hardware-selected profile.
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE:?Set NIM_MODEL_PROFILE from list-model-profiles}
+      # Bound paged KV-cache demand. Use the same values in every profile test.
+      NIM_MAX_MODEL_LEN: ${NIM_MAX_MODEL_LEN:-4096}
+      NIM_MAX_BATCH_SIZE: ${NIM_MAX_BATCH_SIZE:-8}
+    ports:
+      - "8003:8000"
+    volumes:
+      - nim-cache:/opt/nim/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  nim-cache:

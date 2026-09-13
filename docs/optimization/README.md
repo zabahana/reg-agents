@@ -64,6 +64,46 @@ NIM_BASE_URL=http://nim-int8:8000/v1 \
   python scripts/evaluate_complaint_quality.py --profile int8-trtllm --limit 20
 ```
 
+### Self-hosted NIM/TensorRT-LLM on Brev
+
+The hosted NVIDIA catalog is useful for functional testing, but it does not
+provide an operator-controlled precision profile. The
+`docker-compose.nim-selfhosted.yml` overlay starts Llama 3.1 8B locally on the
+GPU and requires an explicit NIM profile so every measurement is attributable.
+
+```bash
+# Obtain an NGC API key with access to nvcr.io; do not commit or echo it.
+export NGC_API_KEY='...'
+
+# The exact image/GPU determines the available profile IDs and precisions.
+docker run --rm --gpus all -e NGC_API_KEY \
+  nvcr.io/nim/meta/llama-3.1-8b-instruct:latest list-model-profiles
+
+# Choose a profile whose output explicitly identifies its precision, then start it.
+export NIM_MODEL_PROFILE='<fp16-profile-id>'
+COMPOSE_PARALLEL_LIMIT=1 docker compose \
+  -f docker-compose.yml -f docker-compose.gpu.yml \
+  -f docker-compose.nim-selfhosted.yml --profile monitoring up -d nim-llm
+
+until curl -fsS http://localhost:8003/v1/health/ready >/dev/null; do sleep 10; done
+```
+
+Run the same profile at concurrency 1, 4, and 8, then stop the service, choose
+the verified INT8 profile ID, and repeat. The app containers do not need to
+switch providers for the measurement commands: use the Docker-service endpoint
+`http://nim-llm:8000/v1` explicitly.
+
+```bash
+docker compose exec -T complaint-mcp python scripts/benchmark_nim_serving.py \
+  --base-url http://nim-llm:8000/v1 --profile fp16-c1 --concurrency 1 \
+  --runs 10 --warmup 2 \
+  --engine-settings '{"precision":"fp16","engine":"TensorRT-LLM","kv_cache":"paged"}'
+
+docker compose exec -T complaint-mcp sh -lc \
+  'NIM_BASE_URL=http://nim-llm:8000/v1 NIM_MODEL=meta/llama-3.1-8b-instruct \
+   python scripts/evaluate_complaint_quality.py --profile fp16-trtllm --limit 20'
+```
+
 ## 2. KV cache
 
 TensorRT-LLM manages a paged KV cache during generation. The self-hosted
