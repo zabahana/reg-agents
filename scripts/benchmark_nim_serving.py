@@ -20,6 +20,7 @@ import json
 import os
 import statistics
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -75,6 +76,8 @@ def main() -> None:
     parser.add_argument("--engine-settings", default="{}", help="JSON metadata; recorded, never applied.")
     parser.add_argument("--runs", type=int, default=10)
     parser.add_argument("--warmup", type=int, default=2)
+    parser.add_argument("--concurrency", type=int, default=1,
+                        help="Concurrent requests per measured round.")
     parser.add_argument("--max-tokens", type=int, default=100)
     parser.add_argument("--prompt", default=DEFAULT_PROMPT)
     parser.add_argument("--out-dir", default=str(ROOT / "docs" / "optimization" / "results"))
@@ -82,6 +85,8 @@ def main() -> None:
 
     if not args.api_key:
         raise SystemExit("Set NIM_API_KEY or provide --api-key; do not commit the key.")
+    if args.runs < 1 or args.warmup < 0 or args.concurrency < 1:
+        raise SystemExit("--runs and --concurrency must be positive; --warmup cannot be negative.")
     try:
         settings = json.loads(args.engine_settings)
     except json.JSONDecodeError as exc:
@@ -99,15 +104,24 @@ def main() -> None:
     timings: list[float] = []
     ttfts: list[float] = []
     output_tokens: list[int] = []
-    with httpx.Client(timeout=120) as client:
-        for _ in range(args.warmup):
-            run_once(client, url, headers, payload)
-        for index in range(args.runs):
-            elapsed, ttft, tokens = run_once(client, url, headers, payload)
-            print(f"run {index + 1}/{args.runs}: TTFT={ttft:.3f}s total={elapsed:.3f}s")
+    def invoke() -> tuple[float, float, int]:
+        with httpx.Client(timeout=120) as client:
+            return run_once(client, url, headers, payload)
+
+    for _ in range(args.warmup):
+        invoke()
+    for index in range(args.runs):
+        round_started = time.perf_counter()
+        with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+            futures = [pool.submit(invoke) for _ in range(args.concurrency)]
+            results = [future.result() for future in as_completed(futures)]
+        round_elapsed = time.perf_counter() - round_started
+        for elapsed, ttft, tokens in results:
             timings.append(elapsed)
             ttfts.append(ttft)
             output_tokens.append(tokens)
+        print(f"round {index + 1}/{args.runs}: concurrency={args.concurrency} "
+              f"wall={round_elapsed:.3f}s, requests={len(results)}")
 
     result = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -115,7 +129,10 @@ def main() -> None:
         "endpoint": args.base_url,
         "model": args.model,
         "engine_settings": settings,
-        "workload": {"runs": args.runs, "warmup": args.warmup, "max_tokens": args.max_tokens},
+        "workload": {
+            "rounds": args.runs, "warmup": args.warmup,
+            "concurrency": args.concurrency, "max_tokens": args.max_tokens,
+        },
         "metrics": {
             "ttft_p50_s": round(statistics.median(ttfts), 4),
             "ttft_p95_s": round(percentile(ttfts, 0.95), 4),

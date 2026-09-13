@@ -32,6 +32,38 @@ prompt set) alongside those results before selecting a profile. Hosted NIM
 does not expose an operator-controlled precision switch, so it is unsuitable
 for this A/B comparison.
 
+### Controlled concurrency sweep
+
+Hold the prompt, generation limit, model version, and engine profile fixed.
+Run each level after the engine is warm:
+
+```bash
+for concurrency in 1 4 8; do
+  python scripts/benchmark_nim_serving.py \
+    --base-url http://nim-fp16:8000/v1 --profile "fp16-c${concurrency}" \
+    --concurrency "$concurrency" --runs 10 --warmup 2 \
+    --engine-settings '{"precision":"fp16","engine":"TensorRT-LLM","kv_cache":"paged"}'
+done
+```
+
+Compare TTFT p95, total-latency p95, output tokens/s, GPU memory, and request
+errors. Stop increasing concurrency when p95 grows beyond the agreed service
+objective or the server rejects/OOMs requests.
+
+### Quality comparison
+
+The reserved CFPB scoring holdout has weak labels. The script below reports
+its agreement separately for the stage-1 gate, end-to-end output, and only
+the actual `rag_llm` rows. It labels the result accurately as weak-label
+agreement, not human-adjudicated accuracy.
+
+```bash
+NIM_BASE_URL=http://nim-fp16:8000/v1 \
+  python scripts/evaluate_complaint_quality.py --profile fp16-trtllm --limit 20
+NIM_BASE_URL=http://nim-int8:8000/v1 \
+  python scripts/evaluate_complaint_quality.py --profile int8-trtllm --limit 20
+```
+
 ## 2. KV cache
 
 TensorRT-LLM manages a paged KV cache during generation. The self-hosted
