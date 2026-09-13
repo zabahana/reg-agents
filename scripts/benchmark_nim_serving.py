@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import statistics
 import time
@@ -39,7 +40,9 @@ def percentile(values: list[float], p: float) -> float:
     values = sorted(values)
     if not values:
         return 0.0
-    return values[min(len(values) - 1, int((len(values) - 1) * p))]
+    # Nearest-rank percentile: p95 of three samples must include the slowest
+    # sample rather than silently reporting the median.
+    return values[min(len(values) - 1, max(0, math.ceil(p * len(values)) - 1))]
 
 
 def run_once(
