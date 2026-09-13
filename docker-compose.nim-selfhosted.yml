@@ -1,4 +1,4 @@
-# Optional GPU overlay for controlled NIM/TensorRT-LLM experiments on Brev.
+# Optional GPU overlay for controlled self-hosted NIM experiments on Brev.
 #
 # Start it with:
 #   NGC_API_KEY=... NIM_MODEL_PROFILE=<profile-id> \
@@ -9,8 +9,9 @@
 #   docker run --rm --gpus all -e NGC_API_KEY \
 #     nvcr.io/nim/meta/llama-3.1-8b-instruct:latest list-model-profiles
 #
-# NIM selects a TensorRT-LLM engine from the specified profile. Never label a
-# profile FP16 or INT8 until its list-model-profiles output confirms precision.
+# NIM selects the runtime from the specified profile (for example vLLM or
+# TensorRT-LLM). Never label a profile FP16, FP8, or INT8 until
+# list-model-profiles confirms both its runtime and precision.
 
 services:
   nim-llm:
