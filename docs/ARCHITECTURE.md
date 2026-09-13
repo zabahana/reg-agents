@@ -199,6 +199,23 @@ locally against OpenAI, deploy on the NVIDIA stack with no code changes.
   (AIQ), so AIQ tracing/eval can slot in later. Enabled via
   `OTEL_EXPORTER_OTLP_ENDPOINT` (monitoring profile); no-op otherwise.
 
+## Resilient governance reporting
+
+The report agent has two explicit rendering paths:
+
+1. **NIM synthesis** — the normal path: NIM turns specialist artifacts into the
+   full SR 11-7-style report.
+2. **Deterministic fallback** — on an LLM timeout or provider error, the report
+   agent renders a structured Markdown report from those same artifacts rather
+   than exposing raw JSON. It includes an executive summary, registry metadata,
+   validation findings, regulatory citations, risk assessment, conditions, and
+   an audit trail that labels the report as deterministic.
+
+The fallback is intentionally evidence-bound: it does not invent metrics,
+regulatory conclusions, or an approval opinion. Missing artifacts become
+explicit review conditions. This preserves the analyst-facing report contract
+while making availability degradation visible.
+
 ## Scaling & production notes
 - Each agent/MCP server scales independently (HPA on CPU/RPS).
 - NIM and Triton scale on the GPU pool; use separate GPU nodes or MIG slices to
