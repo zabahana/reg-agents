@@ -666,6 +666,45 @@ def keyword_classify(text: str) -> Tuple[str, float]:
     return best, round(conf, 2)
 
 
+def _parse_stage2_response(raw: str) -> Dict:
+    """Parse an LLM's constrained stage-2 reply, preferring strict JSON.
+
+    Some OpenAI-compatible endpoints return an otherwise useful object with an
+    unquoted taxonomy code (``{"label": FCRA_ACCURACY}``).  The recovery path
+    extracts only allowlisted-shape scalar fields; the caller still rejects a
+    label outside ``REGULATIONS``. This is not a general-purpose JSON repairer.
+    """
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", raw):
+        try:
+            parsed, _ = decoder.raw_decode(raw[match.start():])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+
+    label_match = re.search(
+        r"""["']?label["']?\s*:\s*["']?([A-Za-z_]+)["']?""", raw,
+        re.IGNORECASE,
+    )
+    if not label_match:
+        return {}
+    parsed: Dict = {"label": label_match.group(1).upper()}
+    confidence_match = re.search(
+        r"""["']?confidence["']?\s*:\s*([01](?:\.\d+)?)""", raw,
+        re.IGNORECASE,
+    )
+    if confidence_match:
+        parsed["confidence"] = float(confidence_match.group(1))
+    citation_match = re.search(
+        r"""["']?citation_source["']?\s*:\s*["']?([^"',}\n]+)""", raw,
+        re.IGNORECASE,
+    )
+    if citation_match:
+        parsed["citation_source"] = citation_match.group(1).strip()
+    return parsed
+
+
 def classify_regulation(text: str, retriever=None, use_llm: bool = True) -> Dict:
     """Stage 2: label the regulation category with a cited excerpt."""
     from reg_agents.common.complaint_guardrails import check_stage2_output
@@ -701,8 +740,7 @@ def classify_regulation(text: str, retriever=None, use_llm: bool = True) -> Dict
                 f"COMPLAINT:\n{text[:1800]}\n\nJSON ANSWER:"
             )
             raw = llm.system_user(_STAGE2_SYS, user, temperature=0.0, max_tokens=250)
-            m = re.search(r"\{.*\}", raw, re.S)
-            parsed = json.loads(m.group(0)) if m else {}
+            parsed = _parse_stage2_response(raw)
             label = str(parsed.get("label", "")).strip().upper()
             if label in REGULATIONS:
                 result = {

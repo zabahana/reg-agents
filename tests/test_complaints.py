@@ -88,6 +88,27 @@ def test_keyword_fallback_returns_valid_label():
     assert 0.0 <= conf <= 1.0
 
 
+def test_stage2_parser_accepts_unquoted_taxonomy_code_from_nim():
+    parsed = C._parse_stage2_response(
+        'Classification: {"label": FCRA_ACCURACY, "confidence": 0.91, '
+        '"citation_source": "fcra.md"}'
+    )
+    assert parsed == {
+        "label": "FCRA_ACCURACY",
+        "confidence": 0.91,
+        "citation_source": "fcra.md",
+    }
+
+
+def test_stage2_parser_prefers_valid_json():
+    parsed = C._parse_stage2_response(
+        'Reasoning before answer. {"label":"UDAAP","confidence":0.8,'
+        '"rationale":"Unauthorized account opening.","citation_source":"udaap_bsa_aml.md"}'
+    )
+    assert parsed["label"] == "UDAAP"
+    assert parsed["rationale"] == "Unauthorized account opening."
+
+
 def test_full_pipeline_without_llm():
     res = C.classify_complaint(
         "There is a hard inquiry on my credit report I never authorized and "
